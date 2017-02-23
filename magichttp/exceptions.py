@@ -15,8 +15,16 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from _version import *
 
-import _version
+class StreamEOFError(EOFError):
+    """
+    Read or write after EOF is read or written.
+    """
+    pass
 
-__all__ = _version.__all__
+
+class StreamClosedError(StreamEOFError, OSError):
+    """
+    Write after the stream is closed.
+    """
+    pass
