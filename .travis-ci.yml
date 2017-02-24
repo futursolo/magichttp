@@ -1,0 +1,32 @@
+sudo: false
+
+matrix:
+  allow_failures:
+    - python: nightly
+
+  include:
+    - os: linux
+      python: 3.6.0
+
+    - os: osx
+      osx_image: xcode7.3
+      language: generic
+      env: PYTHONVER=3.6.0
+
+    - os: linux
+      python: nightly
+
+language: python
+
+install:
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade pyenv || brew install pyenv ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then pyenv install $PYTHONVER -v              ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then pyenv global $PYTHONVER                  ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then eval "$(pyenv init -)"                   ; fi
+  - python -m pip install pip setuptools --upgrade
+  - python -m pip install .[test]
+
+# command to run tests
+script:
+  - mypy --fast-parser --python-version 3.6 --disallow-untyped-calls --disallow-untyped-defs --warn-unused-ignores --show-traceback --strict-optional --ignore-missing-imports --follow-imports=skip --show-error-context --show-traceback -p magichttp
+  - pycodestyle --show-source magichttp

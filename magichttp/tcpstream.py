@@ -15,23 +15,101 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from typing import AsyncIterator, Iterable, Any
+from typing import Union, Tuple, Callable, Any, Optional, Iterable
 
+from . import abstracts
+
+import asyncio
 import abc
+import weakref
+import gc
 
-__all__ = ["AbstractStreamReader", "AbstractStreamWriter", "AbstractStream"]
-
-
-class _Identifier:
-    pass
+__all__ = ["TcpServer", "TcpStreamHandler", "TcpStream"]
 
 
-_DEFAULT_MARK = _Identifier()
+class TcpServer(asyncio.AbstractServer):
+    def __init__(
+        self, handler_factory: Callable[..., "TcpStreamHandler"], *,
+            loop: asyncio.AbstractEventLoop) -> None:
+        self._factory = handler_factory
+
+        self._loop = loop
+
+        self._loop_srv: Optional[asyncio.AbstractServer] = None
+
+        self._handlers = weakref.WeakSet()  # type: ignore
+
+        self._teardown_tasks = weakref.WeakSet()  # type: ignore
+
+        self._closed_fur: "asyncio.Future[None]" = self._loop.create_future()
+
+    @classmethod
+    async def create(
+        Cls, handler_factory: Callable[..., "TcpStreamHandler"],
+        *args: Any, loop: Optional[asyncio.AbstractEventLoop]=None,
+            **kwargs: Any) -> "TcpServer":
+        loop = loop or asyncio.get_event_loop()
+        srv = Cls(handler_factory, loop=loop)
+
+        loop_srv = await loop.create_server(
+            srv._peer_connected, *args, **kwargs)
+
+        srv._attach_loop_srv(loop_srv)
+
+        return srv
+
+    def _peer_connected(self) -> asyncio.Protocol:
+        assert self._loop_srv is not None
+
+        handler = self._factory()
+
+        self._handlers.add(handler)
+
+        return handler
+
+    def _attach_loop_srv(self, loop_srv: asyncio.AbstractServer) -> None:
+        assert self._loop_srv is None
+        self._loop_srv = loop_srv
+
+    def close(self) -> None:
+        assert self._loop_srv is not None
+        if self._closed_fur.done():
+            return
+
+        self._loop_srv.close()
+
+        gc.collect()
+
+        for handler in self._handlers:
+            tsk: "asyncio.Task[None]" = \
+                self._loop.create_task(handler.teardown())
+
+            self._teardown_tasks.add(tsk)
+
+        self._closed_fur.set_result(None)
+
+    async def wait_closed(self) -> None:  # type: ignore
+        assert self._loop_srv is not None
+
+        await self._closed_fur
+
+        await asyncio.wait(self._teardown_tasks)
+
+        await self._loop_srv.wait_closed()
+
+    def __del__(self) -> None:
+        if getattr(self, "_loop_srv", None) is not None:
+            self.close()
 
 
-class AbstractStreamReader(abc.ABC, AsyncIterator[bytes]):  # pragma: no cover
+class TcpStreamHandler(asyncio.Protocol, abstracts.AbstractStreamHandler):
+    def __init__(self) -> None:
+        pass
+
+
+class TcpStream(abstracts.AbstractStream):
     """
-    The abstract base class of the stream reader(read only stream).
+    The implementation of :class:`abstracts.AbstractStream` for tcp socket.
     """
     def buflen(self) -> int:
         """
@@ -104,7 +182,7 @@ class AbstractStreamReader(abc.ABC, AsyncIterator[bytes]):  # pragma: no cover
         raise NotImplementedError
 
     @abc.abstractmethod
-    def __aiter__(self) -> "AbstractStreamReader":
+    def __aiter__(self) -> abstracts.AbstractStreamReader:
         """
         The `AbstractStreamReader` is an `AsyncIterator`,
         so this function will simply return the reader itself.
@@ -120,11 +198,6 @@ class AbstractStreamReader(abc.ABC, AsyncIterator[bytes]):  # pragma: no cover
         """
         raise NotImplementedError
 
-
-class AbstractStreamWriter(abc.ABC):  # pragma: no cover
-    """
-    The abstract base class of the stream writer(write only stream).
-    """
     @abc.abstractmethod
     def write(self, data: bytes) -> None:
         """
@@ -201,25 +274,3 @@ class AbstractStreamWriter(abc.ABC):  # pragma: no cover
         Abort the writer without draining out all the pending buffer.
         """
         raise NotImplementedError
-
-
-class AbstractStream(
-        AbstractStreamReader, AbstractStreamWriter):  # pragma: no cover
-    """
-    The abstract base class of the bidirectional stream(read and write stream).
-    """
-    pass
-
-
-class AbstractStreamHandler(abc.ABC):
-    @abc.abstractmethod
-    @property
-    def stream(self) -> AbstractStream:
-        pass
-
-    @abc.abstractmethod
-    async def handle_stream(self) -> None:
-        pass
-
-    async def teardown_stream(self) -> None:
-        pass
