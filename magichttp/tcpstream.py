@@ -104,7 +104,20 @@ class TcpServer(asyncio.AbstractServer):
 
 class TcpStreamHandler(asyncio.Protocol, abstracts.AbstractStreamHandler):
     def __init__(self) -> None:
-        pass
+        raise NotImplementedError
+
+    def connection_made(  # type: ignore
+            self, transport: asyncio.Transport) -> None:
+        raise NotImplementedError
+
+    def data_received(self, data: bytes) -> None:
+        raise NotImplementedError
+
+    def eof_received(self) -> bool:
+        raise NotImplementedError
+
+    def connection_lost(self, exc: Optional[BaseException]) -> None:
+        raise NotImplementedError
 
 
 class TcpStream(abstracts.AbstractStream):
