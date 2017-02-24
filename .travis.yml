@@ -24,6 +24,7 @@ install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then pyenv global $PYTHONVER                  ; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then eval "$(pyenv init -)"                   ; fi
   - python -m pip install pip setuptools --upgrade
+  - python -m pip install mypy pycodestyle -U
   - python -m pip install .[test]
 
 # command to run tests
