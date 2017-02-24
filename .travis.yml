@@ -8,25 +8,15 @@ matrix:
     - os: linux
       python: 3.6.0
 
-    - os: osx
-      osx_image: xcode7.3
-      language: generic
-      env: PYTHONVER=3.6.0
-
     - os: linux
       python: nightly
 
 language: python
 
 install:
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade pyenv || brew install pyenv ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then pyenv install $PYTHONVER -v              ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then eval "$(pyenv init -)"                   ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then pyenv global $PYTHONVER                  ; fi
   - python -m pip install pip setuptools --upgrade
   - python -m pip install mypy pycodestyle -U
   - python -m pip install .[test]
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then pyenv local $PYTHONVER                   ; fi
 
 # command to run tests
 script:
