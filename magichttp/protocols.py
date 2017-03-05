@@ -26,6 +26,8 @@ import asyncio
 import abc
 import h11
 
+__all__ = ["HttpServerProtocol", "HttpClientProtocol"]
+
 
 class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
     _STREAM_BUFFER_LIMIT = 4 * 1024 * 1024  # 4M

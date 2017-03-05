@@ -17,11 +17,18 @@
 
 from _version import *
 from .exceptions import *
+from .initials import *
+from .protocols import *
+from .streams import *
 
 from . import _version
 from . import exceptions
+from . import initials
+from . import protocols
+from . import streams
 
-__all__ = _version.__all__ + exceptions.__all__
+__all__ = _version.__all__ + exceptions.__all__ + initials.__all__ + \
+    protocols.__all__ + streams.__all__
 
 
 """
