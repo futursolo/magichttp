@@ -16,7 +16,46 @@
 #   limitations under the License.
 
 from _version import *
+from .exceptions import *
 
-import _version
+from . import _version
+from . import exceptions
 
-__all__ = _version.__all__
+__all__ = _version.__all__ + exceptions.__all__
+
+
+"""
+Constants:
+h11.CLIENT
+h11.SERVER
+h11.PRODUCT_ID
+
+Exceptions:
+h11.ProtocolError
+h11.LocalProtocolError
+h11.RemoteProtocolError
+
+Connection:
+h11.Connection
+
+Client States:
+h11.IDLE
+h11.SEND_BODY
+h11.DONE
+h11.MUST_CLOSE
+h11.CLOSED
+h11.MIGHT_SWITCH_PROTOCOL
+h11.SWITCHED_PROTOCOL
+h11.ERROR
+
+Server States:
+h11.IDLE
+h11.SEND_RESPONSE
+h11.SEND_BODY
+h11.DONE
+h11.MUST_CLOSE
+h11.CLOSED
+h11.SWITCHED_PROTOCOL
+h11.ERROR
+
+"""

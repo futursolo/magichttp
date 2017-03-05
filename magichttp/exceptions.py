@@ -15,16 +15,18 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+__all__ = ["HttpStreamFinishedError", "HttpConnectionClosedError"]
 
-class StreamEOFError(EOFError):
+
+class HttpStreamFinishedError(EOFError):
     """
-    Read or write after EOF is read or written.
+    Read or write the stream after it is finished.
     """
     pass
 
 
-class StreamClosedError(StreamEOFError, OSError):
+class HttpConnectionClosedError(ConnectionError):
     """
-    Write after the stream is closed.
+    Read or write the stream after the connection it it attached to is closed.
     """
     pass
