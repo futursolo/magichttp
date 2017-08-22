@@ -18,17 +18,30 @@
 from typing import Optional, Union, Iterable, Tuple, Mapping
 
 import magicdict
+import enum
 
-__all__ = ["HttpRequestInitial", "HttpResponseInitial"]
+__all__ = ["HttpRequestMethod", "HttpRequestInitial", "HttpResponseInitial"]
 
 _HeaderType = Union[
     Mapping[bytes, bytes],
     Iterable[Tuple[bytes, bytes]]]
 
 
+class HttpRequestMethod(enum.Enum):
+    Get = b"GET"
+    Post = b"POST"
+    Put = b"PUT"
+    Delete = b"DELETE"
+    Head = b"HEAD"
+    Options = b"OPTIONS"
+    Connect = b"CONNECT"
+    Trace = b"TRACE"
+    Patch = b"PATCH"
+
+
 class HttpRequestInitial:
     def __init__(
-        self, *, method: bytes,
+        self, *, method: HttpRequestMethod,
         uri: bytes, authority: Optional[bytes]=None,
         scheme: Optional[bytes]=None,
             headers: Optional[_HeaderType]=None) -> None:
@@ -40,7 +53,7 @@ class HttpRequestInitial:
                 magicdict.FrozenTolerantMagicDict()
 
         elif isinstance(headers, magicdict.FrozenTolerantMagicDict):
-            self._headers = self._headers
+            self._headers = headers
 
         else:
             self._headers: magicdict.FrozenTolerantMagicDict[bytes, bytes] = \
@@ -54,7 +67,7 @@ class HttpRequestInitial:
         return self._headers
 
     @property
-    def method(self) -> bytes:
+    def method(self) -> HttpRequestMethod:
         return self._method
 
     @property

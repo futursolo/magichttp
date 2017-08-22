@@ -21,11 +21,13 @@ from . import protocols
 from . import initials
 from . import streams
 from . import exceptions
+from . import h1connection
 
 import typing
 import asyncio
 import abc
 import functools
+import enum
 
 
 class BaseHttpImpl(abc.ABC):
@@ -37,7 +39,7 @@ class BaseHttpImpl(abc.ABC):
 
         self._paused = False
 
-        self._loop = self._protocol._loop
+        self._loop = asyncio.get_event_loop()
 
     def _pause_reading(self) -> None:
         if self._paused:
@@ -53,49 +55,49 @@ class BaseHttpImpl(abc.ABC):
         self._transport.resume_reading()
         self._paused = False
 
-    @abc.abstractmethod
-    async def _read_request(self) -> streams.HttpRequestReader:
+    @abc.abstractmethod  # Server-side Only.
+    async def _read_request(self) -> "streams.HttpRequestReader":
         raise NotImplementedError
 
-    @abc.abstractmethod
+    @abc.abstractmethod  # Client-side Only.
     async def _read_response(
-        self, req_writer: streams.HttpRequestWriter) -> \
-            streams.HttpResponseReader:
+        self, req_writer: "streams.HttpRequestWriter") -> \
+            "streams.HttpResponseReader":
         raise NotImplementedError
 
-    async def read_request(self) -> streams.HttpRequestReader:
+    async def read_request(self) -> "streams.HttpRequestReader":
         assert isinstance(self._protocol, protocols.HttpServerProtocol)
         return await self._read_request()
 
-    @abc.abstractmethod
+    @abc.abstractmethod  # Client-side Only.
     async def _write_request(
         self, req_initial: initials.HttpRequestInitial) -> \
-            streams.HttpRequestWriter:
+            "streams.HttpRequestWriter":
         raise NotImplementedError
 
-    @abc.abstractmethod
+    @abc.abstractmethod  # Server-side Only.
     async def _write_response(
-        self, req_reader: streams.HttpRequestReader,
+        self, req_reader: "streams.HttpRequestReader",
         res_initial: initials.HttpResponseInitial) -> \
-            streams.HttpResponseWriter:
+            "streams.HttpResponseWriter":
         raise NotImplementedError
 
     async def write_request(
         self, req_initial: initials.HttpRequestInitial) -> \
-            streams.HttpRequestWriter:
+            "streams.HttpRequestWriter":
         assert isinstance(self._protocol, protocols.HttpClientProtocol)
         return await self._write_request(req_initial)
 
     @abc.abstractmethod
     async def _flush_data(
-        self, writer: streams.BaseHttpStreamWriter, data: bytes,
+        self, writer: "streams.BaseHttpStreamWriter", data: bytes,
             last_chunk: bool=False) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
     async def _abort_request(
         self, req_stream: Union[
-            streams.HttpRequestReader, streams.HttpRequestWriter]) -> None:
+            "streams.HttpRequestReader", "streams.HttpRequestWriter"]) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -111,13 +113,60 @@ class BaseHttpImpl(abc.ABC):
         raise NotImplementedError
 
 
-class _H1Parser:
-    pass
-
-
-class _H1Composer:
-    pass
-
-
 class H1Impl(BaseHttpImpl):
-    pass
+    def __init__(
+        self, *, protocol: "protocols.BaseHttpProtocol",
+            transport: asyncio.Transport) -> None:
+        super().__init__(protocol=protocol, transport=transport)
+
+        self._parser: Optional[h1connection.H1InitialParser] = None
+        self._composer: Optional[h1connection.H1InitialComposer] = None
+
+        self._incoming_buf = bytearray()
+
+        self._exc: Optional[Exception] = None
+
+    def reset(self) -> None:
+        self._parser: Optional[h1connection.H1InitialParser] = None
+        self._composer: Optional[h1connection.H1InitialComposer] = None
+
+    async def _read_request(self) -> "streams.HttpRequestReader":
+        raise NotImplementedError
+
+    async def _read_response(
+        self, req_writer: "streams.HttpRequestWriter") -> \
+            "streams.HttpResponseReader":
+        raise NotImplementedError
+
+    async def _write_request(
+        self, req_initial: initials.HttpRequestInitial) -> \
+            "streams.HttpRequestWriter":
+        raise NotImplementedError
+
+    async def _write_response(
+        self, req_reader: "streams.HttpRequestReader",
+        res_initial: initials.HttpResponseInitial) -> \
+            "streams.HttpResponseWriter":
+        raise NotImplementedError
+
+    async def _flush_data(
+        self, writer: "streams.BaseHttpStreamWriter", data: bytes,
+            last_chunk: bool=False) -> None:
+        raise NotImplementedError
+
+    async def _abort_request(
+        self, req_stream: Union[
+            "streams.HttpRequestReader", "streams.HttpRequestWriter"]) -> None:
+        raise NotImplementedError
+
+    def data_received(self, data: bytes) -> None:
+        self._incoming_buf.extend(data)
+
+        if len(self._incoming_buf) > self._protocol._INITIAL_BUFFER_LIMIT:
+            self._pause_reading()
+
+    def eof_received(self) -> None:
+        raise NotImplementedError
+
+    def connection_lost(self, exc: Optional[BaseException]) -> None:
+        raise NotImplementedError

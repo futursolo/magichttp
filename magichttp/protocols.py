@@ -24,13 +24,13 @@ from . import exceptions
 
 import asyncio
 import abc
-import h11
 
 __all__ = ["HttpServerProtocol", "HttpClientProtocol"]
 
 
 class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
     _STREAM_BUFFER_LIMIT = 4 * 1024 * 1024  # 4M
+    _INITIAL_BUFFER_LIMIT = 64 * 1024  # 64K
 
     def __init__(self) -> None:
         super().__init__()

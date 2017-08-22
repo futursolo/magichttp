@@ -15,7 +15,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from _version import *
+from ._version import *
 from .exceptions import *
 from .initials import *
 from .protocols import *

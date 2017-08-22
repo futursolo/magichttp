@@ -30,3 +30,19 @@ class HttpConnectionClosedError(ConnectionError):
     Read or write the stream after the connection it it attached to is closed.
     """
     pass
+
+
+class MalformedHttpMessage(ValueError):
+    pass
+
+
+class MalformedHttpInitial(MalformedHttpMessage):
+    pass
+
+
+class IncomingEntityTooLarge(ValueError):
+    pass
+
+
+class IncomingInitialTooLarge(IncomingEntityTooLarge):
+    pass
