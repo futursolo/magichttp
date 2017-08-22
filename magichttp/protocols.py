@@ -32,11 +32,10 @@ __all__ = ["HttpServerProtocol", "HttpClientProtocol"]
 class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
     _STREAM_BUFFER_LIMIT = 4 * 1024 * 1024  # 4M
 
-    def __init__(
-            self, loop: Optional[asyncio.AbstractEventLoop]=None) -> None:
+    def __init__(self) -> None:
         super().__init__()
 
-        self._loop = loop or asyncio.get_event_loop()
+        self._loop = asyncio.get_event_loop()
 
         self._drained_event = asyncio.Event()
         self._drained_event.set()

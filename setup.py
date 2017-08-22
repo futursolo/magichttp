@@ -35,7 +35,6 @@ def load_version(module_name):
     _version_spec.loader.exec_module(_version)
     return _version.version
 
-
 setup_requires = [
     "setuptools",
     "pytest-runner>=2.11.1,<3"]
@@ -54,7 +53,7 @@ if __name__ == "__main__":
         author_email="futursolo@icloud.com",
         url="https://github.com/futursolo/magichttp",
         license="Apache License 2.0",
-        description="An Http Implementation for asyncio.",
+        description="An http stack for asyncio.",
         long_description=open("README.rst", "r").read(),
         packages=find_packages(),
         include_package_data=True,
