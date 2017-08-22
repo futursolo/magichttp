@@ -40,8 +40,7 @@ setup_requires = [
     "pytest-runner>=2.11.1,<3"]
 
 install_requires = [
-    "magicdict>=0.1.0,<1",
-    "h11>0.7.0,<1"]
+    "magicdict>=0.1.0,<1"]
 
 tests_require = ["pytest>=3.0.6,<4"]
 

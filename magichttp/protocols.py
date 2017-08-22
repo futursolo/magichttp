@@ -46,7 +46,7 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
 
     def connection_made(  # type: ignore
             self, transport: asyncio.Transport) -> None:
-        self._impl = impls.H11Impl(protocol=self, transport=transport)
+        self._impl = impls.H1Impl(protocol=self, transport=transport)
 
         self._open_after_eof = transport.get_extra_info("sslcontext") is None
 
