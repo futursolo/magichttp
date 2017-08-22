@@ -9,6 +9,15 @@ matrix:
       python: 3.6.0
 
     - os: linux
+      python: 3.6.1
+
+    - os: linux
+      python: 3.6.2
+
+    - os: linux
+      python: 3.6
+
+    - os: linux
       python: nightly
 
 language: python
@@ -20,5 +29,5 @@ install:
 
 # command to run tests
 script:
-  - mypy --fast-parser --python-version 3.6 --disallow-untyped-calls --disallow-untyped-defs --warn-unused-ignores --show-traceback --strict-optional --ignore-missing-imports --follow-imports=skip --show-error-context --show-traceback -p magichttp
+  - mypy --python-version 3.6 --disallow-untyped-calls --disallow-untyped-defs --warn-unused-ignores --show-traceback --strict-optional --ignore-missing-imports --show-error-context --show-traceback -p magichttp
   - pycodestyle --show-source magichttp

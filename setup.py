@@ -36,9 +36,13 @@ def load_version(module_name):
     return _version.version
 
 
-setup_requires = ["setuptools", "pytest-runner>=2.11.1,<3"]
+setup_requires = [
+    "setuptools",
+    "pytest-runner>=2.11.1,<3"]
 
-install_requires = ["magicdict>=0.1.0,<1", "h11>=0.7.0,<1", "h2>=2.5.2,<3"]
+install_requires = [
+    "magicdict>=0.1.0,<1",
+    "h11>0.7.0,<1"]
 
 tests_require = ["pytest>=3.0.6,<4"]
 
@@ -48,9 +52,9 @@ if __name__ == "__main__":
         version=load_version("magichttp"),
         author="Kaede Hoshikawa",
         author_email="futursolo@icloud.com",
-        url="https://github.com/futursolo/hiyori",
+        url="https://github.com/futursolo/magichttp",
         license="Apache License 2.0",
-        description="An ordered, one-to-many mapping.",
+        description="An Http Implementation for asyncio.",
         long_description=open("README.rst", "r").read(),
         packages=find_packages(),
         include_package_data=True,
