@@ -32,6 +32,10 @@ class HttpConnectionClosedError(ConnectionError):
     pass
 
 
+class HttpStreamAbortedError(HttpStreamFinishedError):
+    pass
+
+
 class MalformedHttpMessage(ValueError):
     pass
 

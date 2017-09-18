@@ -35,6 +35,7 @@ def load_version(module_name):
     _version_spec.loader.exec_module(_version)
     return _version.version
 
+
 setup_requires = [
     "setuptools",
     "pytest-runner>=2.11.1,<3"]
