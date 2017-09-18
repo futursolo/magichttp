@@ -275,7 +275,7 @@ class H1Parser:
 
             pos = self._buf.find(b"\r\n")
 
-            if pos = -1:
+            if pos == -1:
                 return
 
             len_bytes = self._buf[0:pos]
@@ -325,7 +325,6 @@ class H1Parser:
 
             else:
                 return b""
-
 
         if len(self._buf) == 0:
             # No more data.
@@ -377,6 +376,7 @@ class H1Parser:
             del self._buf[0:self._body_len_left]
 
         return current_chunk
+
 
 class H1Composer:
     pass

@@ -224,7 +224,6 @@ class H1Impl(BaseHttpImpl):
             if self._reader is not None:
                 self._reader_queue.put_nowait(self._reader)
 
-
     def eof_received(self) -> None:
         raise NotImplementedError
 
