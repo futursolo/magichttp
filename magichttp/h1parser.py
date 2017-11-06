@@ -130,7 +130,7 @@ class H1Parser:
 
             return
 
-        if b"transfer-encoding" in req_initials.headers.keys():
+        if b"transfer-encoding" in req_initial.headers.keys():
             if self._determined_by_transfer_encoding(
                     req_initial.headers[b"transfer-encoding"]):
                 return
@@ -164,7 +164,7 @@ class H1Parser:
 
             return
 
-        if b"transfer-encoding" in res_initials.headers.keys():
+        if b"transfer-encoding" in res_initial.headers.keys():
             if self._determined_by_transfer_encoding(
                     res_initial.headers[b"transfer-encoding"]):
                 return
@@ -178,7 +178,7 @@ class H1Parser:
 
     def parse_request(self) -> Optional[initials.HttpRequestInitial]:
         if self._body_len_left is not None:
-            return  # Waiting for body to finish.
+            return None  # Waiting for body to finish.
 
         initial_lines = self._split_initial()
 
@@ -212,7 +212,7 @@ class H1Parser:
     def parse_response(self, req_initial: initials.HttpRequestInitial) -> \
             Optional[initials.HttpResponseInitial]:
         if self._body_len_left is not None:
-            return  # Waiting for body to finish.
+            return None  # Waiting for body to finish.
 
         initial_lines = self._split_initial()
 
@@ -246,7 +246,7 @@ class H1Parser:
 
     def _parse_chunked_body(
             self, _can_drop_last_crlf: bool=True) -> Optional[bytes]:
-        def try_drop_crlf():
+        def try_drop_crlf() -> None:
             if self._body_chunk_crlf_dropped:
                 return
 
@@ -267,7 +267,7 @@ class H1Parser:
 
             self._body_chunk_crlf_dropped = True
 
-        def try_read_next_chunk_len():
+        def try_read_next_chunk_len() -> None:
             try_drop_crlf()
 
             if self._body_chunk_len_left != _CHUNK_NOT_STARTED:
@@ -281,15 +281,15 @@ class H1Parser:
             len_bytes = self._buf[0:pos]
             del self._buf[0:pos + 2]
 
+            len_bytes = list(
+                httputils.parse_semicolon_header(len_bytes).keys())[0]
+
             try:
                 len_str = len_bytes.decode("latin-1")
 
             except UnicodeDecodeError as e:
                 raise exceptions.MalformedHttpMessage(
                     "Unable to decode the chunk length as latin-1.") from e
-
-            len_str = list(httputils.parse_semicolon_header(len_str).keys())[0]
-
             try:
                 self._body_chunk_len_left = int(len_str, 16)
 
@@ -333,7 +333,7 @@ class H1Parser:
         if self._body_chunk_len_left >= len(self._buf):
             current_chunk = bytes(self._buf)
             self._body_chunk_len_left -= len(current_chunk)
-            self._buf.clear()
+            self._buf.clear()  # type: ignore
 
         else:
             current_chunk = self._buf[0:self._body_chunk_len_left]
@@ -356,19 +356,22 @@ class H1Parser:
 
         if self._body_len_left == _ENDLESS_BODY:
             current_chunk = bytes(self._buf)
-            self._buf.clear()
+            self._buf.clear()  # type: ignore
 
         elif self._body_len_left == _CHUNKED_BODY:
-            current_chunk = self._parse_chunked_body()
-            if current_chunk is None:
+            maybe_current_chunk = self._parse_chunked_body()
+            if maybe_current_chunk is None:
                 self._body_len_left = None
+
+            else:
+                current_chunk = maybe_current_chunk
 
                 return None
 
         elif self._body_len_left >= len(self._buf):
             current_chunk = bytes(self._buf)
             self._body_len_left -= len(current_chunk)
-            self._buf.clear()
+            self._buf.clear()  # type: ignore
 
         else:
             current_chunk = bytes(self._buf[0:self._body_len_left])
@@ -376,7 +379,3 @@ class H1Parser:
             del self._buf[0:self._body_len_left]
 
         return current_chunk
-
-
-class H1Composer:
-    pass

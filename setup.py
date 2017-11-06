@@ -36,14 +36,13 @@ def load_version(module_name):
     return _version.version
 
 
-setup_requires = [
+setup_requirements = [
     "setuptools",
-    "pytest-runner>=2.11.1,<3"]
+    "pytest-runner"]
 
-install_requires = [
-    "magicdict>=0.1.0,<1"]
+install_requirements = open("requirements.txt").read().split("\n")
 
-tests_require = ["pytest>=3.0.6,<4"]
+test_requirements = open("dev-requirements.txt").read().split("\n")
 
 if __name__ == "__main__":
     setup(
@@ -57,11 +56,11 @@ if __name__ == "__main__":
         long_description=open("README.rst", "r").read(),
         packages=find_packages(),
         include_package_data=True,
-        setup_requires=setup_requires,
-        install_requires=install_requires,
-        tests_require=tests_require,
+        setup_requires=setup_requirements,
+        install_requires=install_requirements,
+        tests_require=test_requirements,
         extras_require={
-            "test": tests_require
+            "test": test_requirements
         },
         zip_safe=False,
         classifiers=[
