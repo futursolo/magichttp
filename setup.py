@@ -16,6 +16,7 @@
 #   limitations under the License.
 
 from setuptools import setup, find_packages
+from pip.req import parse_requirements
 
 import importlib
 import os
@@ -40,9 +41,11 @@ setup_requirements = [
     "setuptools",
     "pytest-runner"]
 
-install_requirements = open("requirements.txt").read().split("\n")
+install_requirements = [
+    str(r.req) for r in parse_requirements("requirements.txt", session=False)]
 
-test_requirements = open("dev-requirements.txt").read().split("\n")
+test_requirements = [
+    str(r.req) for r in parse_requirements("dev-requirements.txt", session=False)]
 
 if __name__ == "__main__":
     setup(
