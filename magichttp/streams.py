@@ -74,7 +74,7 @@ class BaseHttpStreamReader(abc.ABC):
         Similarly, if the eof reached before found the separator it will raise
         an `asyncio.IncompleteReadError`.
 
-        When at_eof() is True, this method will raise a
+        When finished() is True, this method will raise a
         :class:`exceptions.StreamEOFError`.
         """
         raise NotImplementedError
@@ -139,7 +139,7 @@ class BaseHttpStreamWriter(abc.ABC):
             data = bytes(self._buffer)
             self._buffer.clear()  # type: ignore
 
-            await self._impl._flush_data(self, data)
+            await self._impl.flush_data(self, data)
 
     async def finish(self) -> None:
         """
@@ -157,7 +157,7 @@ class BaseHttpStreamWriter(abc.ABC):
             data = bytes(self._buffer)
             self._buffer.clear()  # type: ignore
 
-            await self._impl._flush_data(self, data, last_chunk=True)
+            await self._impl.flush_data(self, data, last_chunk=True)
 
     def finished(self) -> bool:
         """
@@ -196,7 +196,7 @@ class HttpRequestReader(BaseHttpStreamReader):
         raise NotImplementedError
 
     async def abort(self) -> None:
-        await self._impl._abort_request(self)
+        await self._impl.abort_request(self)
 
 
 class HttpRequestWriter(BaseHttpStreamWriter):
@@ -219,7 +219,7 @@ class HttpRequestWriter(BaseHttpStreamWriter):
         raise NotImplementedError
 
     async def abort(self) -> None:
-        await self._impl._abort_request(self)
+        await self._impl.abort_request(self)
 
 
 class HttpResponseReader(BaseHttpStreamReader):
@@ -241,7 +241,7 @@ class HttpResponseReader(BaseHttpStreamReader):
         return self._req_writer
 
     async def abort(self) -> None:
-        await self._impl._abort_request(self.req_writer)
+        await self._impl.abort_request(self.req_writer)
 
 
 class HttpResponseWriter(BaseHttpStreamWriter):
@@ -263,4 +263,4 @@ class HttpResponseWriter(BaseHttpStreamWriter):
         return self._req_reader
 
     async def abort(self) -> None:
-        await self._impl._abort_request(self.req_reader)
+        await self._impl.abort_request(self.req_reader)

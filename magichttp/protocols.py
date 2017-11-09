@@ -46,8 +46,6 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
 
     def connection_made(  # type: ignore
             self, transport: asyncio.Transport) -> None:
-        self._impl = impls.H1Impl(protocol=self, transport=transport)
-
         self._open_after_eof = transport.get_extra_info("sslcontext") is None
 
     def pause_writing(self) -> None:
@@ -70,26 +68,36 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
 
     def data_received(self, data: bytes) -> None:
         assert self._impl is not None
+
         self._impl.data_received(data)
 
     def eof_received(self) -> bool:
         assert self._impl is not None
+
         self._impl.eof_received()
 
         return self._open_after_eof
 
     def connection_lost(self, exc: Optional[BaseException]) -> None:
         assert self._impl is not None
+
         self._impl.connection_lost(exc)
 
 
 class HttpServerProtocol(
         BaseHttpProtocol, AsyncIterator[streams.HttpRequestReader]):
+    def connection_made(  # type: ignore
+            self, transport: asyncio.Transport) -> None:
+        super().connection_made(transport)
+
+        self._impl = impls.H1ServerImpl(protocol=self, transport=transport)
+
     def __aiter__(self) -> AsyncIterator[streams.HttpRequestReader]:
         return self
 
     async def __anext__(self) -> streams.HttpRequestReader:
-        assert self._impl is not None
+        assert isinstance(self._impl, impls.BaseHttpServerImpl)
+
         try:
             return await self._impl.read_request()
 
@@ -98,8 +106,15 @@ class HttpServerProtocol(
 
 
 class HttpClientProtocol(BaseHttpProtocol):
+    def connection_made(  # type: ignore
+            self, transport: asyncio.Transport) -> None:
+        super().connection_made(transport)
+
+        self._impl = impls.H1ClientImpl(protocol=self, transport=transport)
+
     async def write_request(
         self, req_initial: initials.HttpRequestInitial) -> \
             streams.HttpRequestWriter:
-        assert self._impl is not None
+        assert isinstance(self._impl, impls.BaseHttpClientImpl)
+
         return await self._impl.write_request(req_initial)

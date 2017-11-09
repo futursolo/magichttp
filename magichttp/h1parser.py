@@ -23,7 +23,6 @@ from . import httputils
 
 import magicdict
 
-
 _CHUNKED_BODY = -1
 _ENDLESS_BODY = -2
 
@@ -32,6 +31,10 @@ _LAST_CHUNK = -2
 
 
 class H1Parser:
+    __slots__ = (
+        "_buf", "_searched_len", "_using_https", "_body_len_left",
+        "_body_chunk_len_left", "_body_chunk_crlf_dropped")
+
     def __init__(self, buf: bytearray, using_https: bool=False) -> None:
         self._buf = buf
 
@@ -80,8 +83,8 @@ class H1Parser:
 
         return headers
 
-    def _determined_by_transfer_encoding(
-            self, transfer_encoding_bytes: bytes) -> bool:
+    def _determine_by_transfer_encoding(
+            self, transfer_encoding_bytes: bytes) -> None:
         transfer_encoding_list = list(
             httputils.parse_semicolon_header(transfer_encoding_bytes))
 
@@ -102,14 +105,10 @@ class H1Parser:
                 self._body_len_left = _CHUNKED_BODY
                 self._body_chunk_len_left = _CHUNK_NOT_STARTED
 
-                return True
-
-        return False
-
     def _determine_content_length_by_header(
             self, content_length_bytes: bytes) -> None:
         try:
-            content_length_str = content_length_bytes.decode("ascii")
+            content_length_str = content_length_bytes.decode("latin-1")
 
             if not content_length_str.isdecimal():
                 raise ValueError("This is not a valid Decimal Number.")
@@ -131,13 +130,16 @@ class H1Parser:
             return
 
         if b"transfer-encoding" in req_initial.headers.keys():
-            if self._determined_by_transfer_encoding(
-                    req_initial.headers[b"transfer-encoding"]):
+            self._determine_by_transfer_encoding(
+                req_initial.headers[b"transfer-encoding"])
+
+            if self._body_len_left is not None:
                 return
 
         if b"content-length" not in req_initial.headers.keys():
-            raise exceptions.MalformedHttpInitial(
-                "Content-Length MUST be presented in the Request.")
+            raise exceptions.IncomingBodyLengthRequired(
+                "Content-Length or Transfer-Encoding MUST "
+                "be presented in the Request.")
 
         self._determine_content_length_by_header(
             req_initial.headers[b"content-length"])
@@ -147,8 +149,8 @@ class H1Parser:
             res_initial: initials.HttpResponseInitial) -> None:
         assert self._body_len_left is None
 
-        if req_initial.headers.get_first(
-                b"connection", b"").strip().lower() == "upgrade":
+        if res_initial.headers.get_first(
+                b"connection", b"").strip().lower() == b"upgrade":
             self._body_len_left = _ENDLESS_BODY
 
             return
@@ -165,12 +167,14 @@ class H1Parser:
             return
 
         if b"transfer-encoding" in res_initial.headers.keys():
-            if self._determined_by_transfer_encoding(
-                    res_initial.headers[b"transfer-encoding"]):
+            self._determine_by_transfer_encoding(
+                res_initial.headers[b"transfer-encoding"])
+
+            if self._body_len_left is not None:
                 return
 
         if b"content-length" not in res_initial.headers.keys():
-            self._body_len_left = -2
+            self._body_len_left = _ENDLESS_BODY
             # Read until close.
 
         self._determine_content_length_by_header(
@@ -191,6 +195,7 @@ class H1Parser:
             method_buf, path, version_buf = first_line.split(b" ")
 
             method = initials.HttpRequestMethod(method_buf.strip())
+            version = initials.HttpVersion(version_buf.strip())
 
         except (IndexError, ValueError) as e:
             raise exceptions.MalformedHttpInitial(
@@ -199,7 +204,8 @@ class H1Parser:
         headers = self._parse_headers(initial_lines)
 
         req_initial = initials.HttpRequestInitial(
-            method=method,
+            method,
+            version=version,
             uri=path,
             authority=headers[b"host"],
             scheme=b"https" if self._using_https else b"http",
@@ -230,6 +236,7 @@ class H1Parser:
                 raise ValueError("Status Code MUST be decimal.")
 
             status_code = int(status_code_str)
+            version = initials.HttpVersion(version_buf)
 
         except (IndexError, ValueError) as e:
             raise exceptions.MalformedHttpInitial(
@@ -238,7 +245,7 @@ class H1Parser:
         headers = self._parse_headers(initial_lines)
 
         res_initial = initials.HttpResponseInitial(
-            status_code=status_code, headers=headers)
+            status_code, version=version, headers=headers)
 
         self._discover_response_body_len(req_initial, res_initial)
 

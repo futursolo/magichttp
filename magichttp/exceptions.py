@@ -44,9 +44,25 @@ class MalformedHttpInitial(MalformedHttpMessage):
     pass
 
 
+class IncomingBodyLengthRequired(MalformedHttpInitial):
+    pass
+
+
 class IncomingEntityTooLarge(ValueError):
     pass
 
 
 class IncomingInitialTooLarge(IncomingEntityTooLarge):
+    pass
+
+
+class OutgoingBodyLengthRequired(MalformedHttpInitial):
+    pass
+
+
+class OutgoingBodyLengthMismatch(MalformedHttpMessage):
+    pass
+
+
+class HttpRequestInitialRequired(ValueError):
     pass
