@@ -33,34 +33,55 @@ class HttpConnectionClosedError(ConnectionError):
 
 
 class HttpStreamAbortedError(HttpStreamFinishedError):
+    """
+    Read or write the stream after the stream is aborted.
+    """
     pass
 
 
 class MalformedHttpMessage(ValueError):
+    """
+    The HTTP Message is malformed.
+    """
     pass
 
 
 class MalformedHttpInitial(MalformedHttpMessage):
+    """
+    The Initial of a HTTP Message is malformed.
+    """
     pass
 
 
 class IncomingBodyLengthRequired(MalformedHttpInitial):
+    """
+    A Request is required to either provide its content length
+    or send the body via chunked encoding.
+
+    The Server should respond the request with an
+    HTTP 411(Length Required) status.
+    """
     pass
 
 
 class IncomingEntityTooLarge(ValueError):
+    """
+    The size of the Request is too large for the server to process.
+
+    The Server should respond the request with an
+    HTTP 413(Request Entity Too Large) status.
+    """
     pass
 
 
 class IncomingInitialTooLarge(IncomingEntityTooLarge):
-    pass
+    """
+    Similar to IncomingEntityTooLarge exception; however, more specifically,
+    the initial is too large.
 
-
-class OutgoingBodyLengthRequired(MalformedHttpInitial):
-    pass
-
-
-class OutgoingBodyLengthMismatch(MalformedHttpMessage):
+    The Server should respond with HTTP 431(Request Header Fields Too Large) or
+    with HTTP 413(Request Entity Too Large).
+    """
     pass
 
 

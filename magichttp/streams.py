@@ -51,6 +51,9 @@ class BaseHttpStreamReader(abc.ABC):
     def _append_end(self) -> None:
         self._finished = True
 
+    def _append_exc(self, exc: Exception) -> None:
+        raise NotImplementedError
+
     async def read(self, n: int=-1, exactly: bool=False) -> bytes:
         """
         Read at most n bytes data or if exactly is `True`,

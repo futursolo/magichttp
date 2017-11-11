@@ -22,7 +22,7 @@ from . import exceptions
 from . import httputils
 from . import _version
 
-import http.client
+import http
 import magicdict
 
 _SELF_IDENTIFIER = f"magichttp/{_version.version}".encode()
@@ -193,7 +193,7 @@ class H1Composer:
         return (refined_res_initial, self._generate_initial_bytes(
                 version.value,
                 str(res_initial.status_code).encode(),
-                http.client.responses[res_initial.status_code].encode(),
+                http.HTTPStatus(res_initial.status_code).phrase.encode(),
                 headers=refined_res_initial.headers))
 
     def compose_body(

@@ -44,6 +44,19 @@ class HttpRequestMethod(enum.Enum):
     Patch = b"PATCH"
 
 
+def _refine_headers(
+    headers: Optional[_HeaderType]) -> \
+        magicdict.FrozenTolerantMagicDict[bytes, bytes]:
+    if headers is None:
+        return magicdict.FrozenTolerantMagicDict()
+
+    elif isinstance(headers, magicdict.FrozenTolerantMagicDict):
+        return headers
+
+    else:
+        return magicdict.FrozenTolerantMagicDict(headers)
+
+
 class HttpRequestInitial:
     __slots__ = (
         "_method", "_version", "_uri", "_headers", "_authority", "_scheme")
@@ -58,16 +71,7 @@ class HttpRequestInitial:
         self._version = version
         self._uri = uri
 
-        if headers is None:
-            self._headers: magicdict.FrozenTolerantMagicDict[bytes, bytes] = \
-                magicdict.FrozenTolerantMagicDict()
-
-        elif isinstance(headers, magicdict.FrozenTolerantMagicDict):
-            self._headers = headers
-
-        else:
-            self._headers: magicdict.FrozenTolerantMagicDict[bytes, bytes] = \
-                magicdict.FrozenTolerantMagicDict(headers)
+        self._headers = _refine_headers(headers)
 
         self._authority = authority
         self._scheme = scheme
@@ -113,16 +117,7 @@ class HttpResponseInitial:
         self._status_code = status_code
         self._version = version
 
-        if headers is None:
-            self._headers: magicdict.FrozenTolerantMagicDict[bytes, bytes] = \
-                magicdict.FrozenTolerantMagicDict()
-
-        elif isinstance(headers, magicdict.FrozenTolerantMagicDict):
-            self._headers = self._headers
-
-        else:
-            self._headers: magicdict.FrozenTolerantMagicDict[bytes, bytes] = \
-                magicdict.FrozenTolerantMagicDict(headers)
+        self._headers = _refine_headers(headers)
 
     @property
     def status_code(self) -> int:
