@@ -158,24 +158,24 @@ class H1Composer:
         refined_res_headers.setdefault(b"server", _SELF_IDENTIFIER)
 
         if res_initial.status_code >= 400:
-            refined_res_headers[b"connection"] = "Close"
+            refined_res_headers[b"connection"] = b"Close"
 
         elif b"connection" not in res_initial.headers.keys():
             if version == initials.HttpVersion.V1_1:
                 if req_initial is not None and \
                         b"connection" in req_initial.headers.keys():
                     if req_initial.headers[
-                            b"connection"].lower() == "keep-alive":
-                        refined_res_headers[b"connection"] = "Keep-Alive"
+                            b"connection"].lower() == b"keep-alive":
+                        refined_res_headers[b"connection"] = b"Keep-Alive"
 
                     else:
-                        refined_res_headers[b"connection"] = "Close"
+                        refined_res_headers[b"connection"] = b"Close"
 
                 else:
-                    refined_res_headers[b"connection"] = "Keep-Alive"
+                    refined_res_headers[b"connection"] = b"Keep-Alive"
 
             else:
-                refined_res_headers[b"connection"] = "Close"
+                refined_res_headers[b"connection"] = b"Close"
 
         if b"transfer-encoding" in res_initial.headers.keys():
             self._determine_if_chunked_body_is_used(

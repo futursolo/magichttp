@@ -139,9 +139,9 @@ class H1Parser:
                 return
 
         if b"content-length" not in req_initial.headers.keys():
-            raise exceptions.IncomingBodyLengthRequired(
-                "Content-Length or Transfer-Encoding MUST "
-                "be presented in the Request.")
+            self._body_len_left = 0
+
+            return
 
         self._determine_content_length_by_header(
             req_initial.headers[b"content-length"])

@@ -15,6 +15,11 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+from typing import Callable, Awaitable, Optional
+
+from . import initials
+from . import streams
+
 __all__ = [
     "HttpStreamFinishedError",
     "HttpConnectionClosingError",
@@ -60,23 +65,29 @@ class MalformedHttpMessage(ValueError):
     """
     The HTTP Message is malformed.
     """
-    pass
+    def __init__(
+            self, *args: str, write_response_fn: Optional[Callable[
+            ["initials.HttpResponseInitial"],
+            Awaitable["streams.HttpResponseWriter"]]]=None) -> None:
+        self._write_response_fn = write_response_fn
+
+        final_args = args or (self.__doc__,)
+
+        super().__init__(*final_args)
+
+    @property
+    def write_response(self) -> Callable[
+            ["initials.HttpResponseInitial"],
+            Awaitable["streams.HttpResponseWriter"]]:
+        if self._write_response_fn is None:
+            raise AttributeError("This is not available.")
+
+        return self._write_response_fn
 
 
 class MalformedHttpInitial(MalformedHttpMessage):
     """
     The Initial of a HTTP Message is malformed.
-    """
-    pass
-
-
-class IncomingBodyLengthRequired(MalformedHttpInitial):
-    """
-    A Request is required to either provide its content length
-    or send the body via chunked encoding.
-
-    The Server should respond the request with an
-    HTTP 411(Length Required) status.
     """
     pass
 
@@ -88,7 +99,24 @@ class IncomingEntityTooLarge(ValueError):
     The Server should respond the request with an
     HTTP 413(Request Entity Too Large) status.
     """
-    pass
+    def __init__(
+            self, *args: str, write_response_fn: Optional[Callable[
+            ["initials.HttpResponseInitial"],
+            Awaitable["streams.HttpResponseWriter"]]]=None) -> None:
+        self._write_response_fn = write_response_fn
+
+        final_args = args or (self.__doc__,)
+
+        super().__init__(*final_args)
+
+    @property
+    def write_response(self) -> Callable[
+            ["initials.HttpResponseInitial"],
+            Awaitable["streams.HttpResponseWriter"]]:
+        if self._write_response_fn is None:
+            raise AttributeError("This is not available.")
+
+        return self._write_response_fn
 
 
 class IncomingInitialTooLarge(IncomingEntityTooLarge):

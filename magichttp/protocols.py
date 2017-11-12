@@ -102,9 +102,9 @@ class HttpServerProtocol(
         BaseHttpProtocol, AsyncIterator[streams.HttpRequestReader]):
     def connection_made(  # type: ignore
             self, transport: asyncio.Transport) -> None:
-        super().connection_made(transport)
-
         self._impl = impls.H1ServerImpl(protocol=self, transport=transport)
+
+        super().connection_made(transport)
 
     def __aiter__(self) -> AsyncIterator[streams.HttpRequestReader]:
         return self
@@ -124,9 +124,9 @@ class HttpServerProtocol(
 class HttpClientProtocol(BaseHttpProtocol):
     def connection_made(  # type: ignore
             self, transport: asyncio.Transport) -> None:
-        super().connection_made(transport)
-
         self._impl = impls.H1ClientImpl(protocol=self, transport=transport)
+
+        super().connection_made(transport)
 
     async def write_request(
         self, req_initial: initials.HttpRequestInitial) -> \

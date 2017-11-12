@@ -298,6 +298,11 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
             self._set_read_state(_ReadState.Reading)
 
     async def read_request(self) -> "streams.HttpRequestReader":
+        async def _write_response(
+            res_initial: initials.HttpResponseInitial) -> \
+                streams.HttpResponseWriter:
+            return await self.write_response(None, res_initial)
+
         async with self._init_lock:
             try:
                 self._try_raise_read_exc()
@@ -308,6 +313,34 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
                 self.data_received()
 
                 return reader
+
+            except exceptions.MalformedHttpInitial as e:
+                if self._writer is None and not self._eof_written.is_set():
+                    raise exceptions.MalformedHttpInitial(
+                        write_response_fn=_write_response) from e
+
+                raise
+
+            except exceptions.MalformedHttpMessage as e:
+                if self._writer is None and not self._eof_written.is_set():
+                    raise exceptions.MalformedHttpMessage(
+                        write_response_fn=_write_response) from e
+
+                raise
+
+            except exceptions.IncomingInitialTooLarge as e:
+                if self._writer is None and not self._eof_written.is_set():
+                    raise exceptions.IncomingInitialTooLarge(
+                        write_response_fn=_write_response) from e
+
+                raise
+
+            except exceptions.IncomingEntityTooLarge as e:
+                if self._writer is None and not self._eof_written.is_set():
+                    raise exceptions.IncomingEntityTooLarge(
+                        write_response_fn=_write_response) from e
+
+                raise
 
             except exceptions.HttpStreamAbortedError as e:
                 raise exceptions.HttpConnectionClosedError from e
@@ -330,7 +363,7 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
 
         self._try_raise_write_exc()
 
-        res_bytes = self._composer.compose_response(
+        refined_initial, res_bytes = self._composer.compose_response(
             res_initial,
             req_initial=req_reader.initial if req_reader else None)
 
@@ -340,7 +373,7 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
 
         self._writer = streams.HttpResponseWriter(
             impl=self,
-            res_initial=res_initial,
+            res_initial=refined_initial,
             req_reader=self._reader)
 
         return self._writer

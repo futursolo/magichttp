@@ -19,6 +19,7 @@ from typing import Optional, Union, Iterable, Tuple, Mapping, Any
 
 import magicdict
 import enum
+import collections
 
 __all__ = [
     "HttpVersion", "HttpRequestMethod",
@@ -107,6 +108,27 @@ class HttpRequestInitial:
     @property
     def headers(self) -> magicdict.FrozenTolerantMagicDict[bytes, bytes]:
         return self._headers
+
+    def __repr__(self) -> str:
+        parts: "collections.OrderedDict[str, str]" = collections.OrderedDict([
+            ("method", repr(self._method)),
+            ("uri", repr(self._uri)),
+        ])
+
+        if self._version is not None:
+            parts["version"] = repr(self._version)
+
+        if self._scheme is not None:
+            parts["scheme"] = repr(self._scheme)
+
+        parts["headers"] = self._headers
+
+        args_repr = ", ".join([f"{k}={v}" for k, v in parts.items()])
+
+        return f"{self.__class__.__name__}({args_repr})"
+
+    def __str__(self) -> str:
+        return repr(self)
 
 
 class HttpResponseInitial:
