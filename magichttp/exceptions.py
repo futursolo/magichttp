@@ -15,7 +15,17 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-__all__ = ["HttpStreamFinishedError", "HttpConnectionClosedError"]
+__all__ = [
+    "HttpStreamFinishedError",
+    "HttpConnectionClosingError",
+    "HttpConnectionClosedError",
+    "HttpStreamAbortedError",
+    "MalformedHttpMessage",
+    "MalformedHttpInitial",
+    "IncomingBodyLengthRequired",
+    "IncomingEntityTooLarge",
+    "IncomingInitialTooLarge",
+    "HttpRequestInitialRequired"]
 
 
 class HttpStreamFinishedError(EOFError):
@@ -93,4 +103,7 @@ class IncomingInitialTooLarge(IncomingEntityTooLarge):
 
 
 class HttpRequestInitialRequired(ValueError):
+    """
+    The Request Initial is required under this situation.
+    """
     pass

@@ -20,7 +20,9 @@ from typing import Optional, Union, Iterable, Tuple, Mapping, Any
 import magicdict
 import enum
 
-__all__ = ["HttpRequestMethod", "HttpRequestInitial", "HttpResponseInitial"]
+__all__ = [
+    "HttpVersion", "HttpRequestMethod",
+    "HttpRequestInitial", "HttpResponseInitial"]
 
 _HeaderType = Union[
     Mapping[bytes, bytes],

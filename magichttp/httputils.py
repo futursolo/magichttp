@@ -19,6 +19,8 @@ from typing import Mapping, Optional
 
 import magicdict
 
+__all__ = ["parse_semicolon_header", "compose_semicolon_header"]
+
 
 def parse_semicolon_header(
         value: bytes) -> magicdict.TolerantMagicDict[bytes, Optional[bytes]]:

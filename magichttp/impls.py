@@ -84,7 +84,8 @@ class BaseHttpImpl(abc.ABC):
     def _close_conn(self) -> None:
         self._write_eof()
 
-        self._transport.close()
+        if not self._transport.is_closing():
+            self._transport.close()
 
     def _write_eof(self) -> None:
         if self._eof_written.is_set():
@@ -188,6 +189,9 @@ class BaseH1Impl(BaseHttpImpl):
         self._read_exc: Optional[Exception] = None
         self._write_exc: Optional[Exception] = None
 
+        self._stream_read_finished = False
+        self._stream_write_finished = False
+
     def _set_read_exc(self, exc: Exception) -> None:
         if self._read_exc is not None:
             return
@@ -263,6 +267,28 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
 
         super()._set_read_exc(exc)
 
+    def _set_write_exc(self, exc: Exception) -> None:
+        if self._writer is not None:
+            self._writer._append_exc(exc)
+
+        super()._set_write_exc(exc)
+
+    def _maybe_finished(self) -> None:
+        if not (self._stream_read_finished and self._stream_write_finished):
+            return
+
+        self._reader = None
+        self._writer = None
+
+        if self._conn_closing.is_set():
+            self._close_conn()
+
+        else:
+            self._stream_read_finished = False
+            self._stream_write_finished = False
+
+            self.data_received()
+
     def resume_reading(self, req_reader: "streams.HttpRequestReader") -> None:
         if self._reader is not req_reader:
             raise ValueError("Reader Mismatch.")
@@ -273,14 +299,18 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
 
     async def read_request(self) -> "streams.HttpRequestReader":
         async with self._init_lock:
-            self._try_raise_read_exc()
+            try:
+                self._try_raise_read_exc()
 
-            reader = await self._reader_fur
-            self._reader_fur = asyncio.Future()
+                reader = await self._reader_fur
+                self._reader_fur = asyncio.Future()
 
-            self.data_received()
+                self.data_received()
 
-            return reader
+                return reader
+
+            except exceptions.HttpStreamAbortedError as e:
+                raise exceptions.HttpConnectionClosedError from e
 
     async def write_response(
         self, req_reader: Optional["streams.HttpRequestReader"],
@@ -329,14 +359,8 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
         await self._protocol._flush()
 
         if last_chunk:
-            self._reader = None
-            self._writer = None
-
-            if self._conn_closing.is_set():
-                self._close_conn()
-
-            else:
-                self.data_received()
+            self._stream_write_finished = True
+            self._maybe_finished()
 
     async def abort_request(
             self, req_stream: Optional["streams.HttpRequestReader"]) -> None:
@@ -361,6 +385,9 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
             return
 
         if self._reader is None:
+            if len(self._buf) == 0 and self._conn_closing.is_set():
+                return
+
             req_initial = self._parser.parse_request()
 
             if req_initial is None:
@@ -384,6 +411,9 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
             if body_parts is None:
                 self._reader._append_end()
 
+                self._stream_read_finished = True
+                self._maybe_finished()
+
                 break  # Finished.
 
             elif len(body_parts) == 0:
@@ -395,6 +425,13 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
 
             elif self._reader._append_data(body_parts):
                 self._set_read_state(_ReadState.Paused)
+
+    async def close(self) -> None:
+        if len(self._buf) == 0 and (self._reader and self._writer) is None:
+            self._close_conn()
+
+        await super().close()
+
 
 
 class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
@@ -421,6 +458,28 @@ class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
 
         super()._set_read_exc(exc)
 
+    def _set_write_exc(self, exc: Exception) -> None:
+        if self._writer is not None:
+            self._writer._append_exc(exc)
+
+        super()._set_write_exc(exc)
+
+    def _maybe_finished(self) -> None:
+        if not (self._stream_read_finished and self._stream_write_finished):
+            return
+
+        self._reader = None
+        self._writer = None
+
+        if self._conn_closing.is_set():
+            self._close_conn()
+
+        else:
+            self._stream_read_finished = False
+            self._stream_write_finished = False
+
+            self._read_finished.set()
+
     def resume_reading(self, req_writer: "streams.HttpRequestWriter") -> None:
         if self._writer is not req_writer:
             raise ValueError("Writer Mismatch.")
@@ -436,6 +495,8 @@ class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
             self._try_raise_write_exc()
 
             await self._read_finished.wait()
+
+            self._try_raise_write_exc()
 
             refined_initial, req_bytes = self._composer.compose_request(
                 req_initial)
@@ -463,6 +524,10 @@ class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
         self._transport.write(body_chunk)
 
         await self._protocol._flush()
+
+        if last_chunk:
+            self._stream_write_finished = True
+            self._maybe_finished()
 
     async def read_response(
         self, req_writer: "streams.HttpRequestWriter") -> \
@@ -528,6 +593,9 @@ class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
             if body_parts is None:
                 self._reader._append_end()
 
+                self._stream_read_finished = True
+                self._maybe_finished()
+
                 break  # Finished.
 
             elif len(body_parts) == 0:
@@ -541,3 +609,9 @@ class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
 
             elif self._reader._append_data(body_parts):
                 self._set_read_state(_ReadState.Paused)
+
+    async def close(self) -> None:
+        if len(self._buf) == 0 and (self._reader and self._writer) is None:
+            self._close_conn()
+
+        await super().close()

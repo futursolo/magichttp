@@ -25,7 +25,9 @@ from . import _version
 import http
 import magicdict
 
-_SELF_IDENTIFIER = f"magichttp/{_version.version}".encode()
+__all__ = ["H1Composer"]
+
+_SELF_IDENTIFIER = f"magichttp/{_version.__version__}".encode()
 
 
 class H1Composer:

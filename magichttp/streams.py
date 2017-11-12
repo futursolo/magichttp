@@ -67,7 +67,10 @@ class BaseHttpStreamReader(abc.ABC):
 
     async def _wait_for_data(self) -> None:
         if self._finished:
-            raise exceptions.HttpStreamFinishedError from self._exc
+            if self._exc:
+                raise self._exc
+
+            raise exceptions.HttpStreamFinishedError
 
         self._resume_reading()
 
@@ -130,8 +133,10 @@ class BaseHttpStreamReader(abc.ABC):
                                 partial, expected=n) from self._exc
 
                         else:
-                            raise exceptions.HttpStreamFinishedError \
-                                from self._exc
+                            if self._exc:
+                                raise self._exc
+
+                            raise exceptions.HttpStreamFinishedError
 
                     await self._wait_for_data()
 
@@ -146,13 +151,13 @@ class BaseHttpStreamReader(abc.ABC):
                     await self._wait_for_data()
 
             elif self.buflen() == 0:
-                if self._finished:
-                    raise exceptions.HttpStreamFinishedError from self._exc
-
                 await self._wait_for_data()
 
             if self.finished():
-                raise exceptions.HttpStreamFinishedError from self._exc
+                if self._exc:
+                    raise self._exc
+
+                raise exceptions.HttpStreamFinishedError
 
             if n < 0 or self.buflen() <= n:
                 data = bytes(self._buf)
@@ -193,8 +198,10 @@ class BaseHttpStreamReader(abc.ABC):
                                 partial, expected=None) from self._exc
 
                         else:
-                            raise exceptions.HttpStreamFinishedError \
-                                from self._exc
+                            if self._exc:
+                                raise self._exc
+
+                            raise exceptions.HttpStreamFinishedError
 
                     if self._buf_is_full():
                         raise asyncio.LimitOverrunError(
@@ -242,9 +249,18 @@ class BaseHttpStreamWriter(abc.ABC):
 
         self._buf = bytearray()
 
+        self._exc: Optional[Exception] = None
+
         self._finished = False
 
         self._flush_lock = asyncio.Lock()
+
+    def _append_exc(self, exc: Exception) -> None:
+        if self._exc is not None:
+            return
+
+        self._finished = True
+        self._exc = exc
 
     def buflen(self) -> int:
         """
@@ -256,7 +272,11 @@ class BaseHttpStreamWriter(abc.ABC):
         """
         Write the data.
         """
-        assert not self._finished, "Write after finished."
+        if self._exc:
+            raise self._exc
+
+        if self._finished:
+            raise exceptions.HttpStreamFinishedError("Write after finished.")
 
         self._buf += data
 
@@ -266,6 +286,9 @@ class BaseHttpStreamWriter(abc.ABC):
         out of the internal buffer.
         """
         async with self._flush_lock:
+            if self._exc:
+                raise self._exc
+
             if self._finished:
                 return
 
@@ -275,13 +298,22 @@ class BaseHttpStreamWriter(abc.ABC):
             data = bytes(self._buf)
             self._buf.clear()  # type: ignore
 
-            await self._impl.flush_data(self, data)
+            try:
+                await self._impl.flush_data(self, data)
+
+            except Exception as e:
+                self._append_exc(e)
+
+                raise
 
     async def finish(self) -> None:
         """
         Finish the Request or Response.
         """
         async with self._flush_lock:
+            if self._exc:
+                raise self._exc
+
             if self._finished:
                 return
 
@@ -293,7 +325,13 @@ class BaseHttpStreamWriter(abc.ABC):
             data = bytes(self._buf)
             self._buf.clear()  # type: ignore
 
-            await self._impl.flush_data(self, data, last_chunk=True)
+            try:
+                await self._impl.flush_data(self, data, last_chunk=True)
+
+            except Exception as e:
+                self._append_exc(e)
+
+                raise
 
     def finished(self) -> bool:
         """

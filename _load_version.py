@@ -15,14 +15,18 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-__all__ = ["__version__"]
+import importlib.util
+import os
 
-_tag_version = "0.0.0"
 
-_dev = 0
+def load(project_folder: str) -> str:
+    _version_spec = importlib.util.spec_from_file_location(
+        f"{project_folder}._version",
+        os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            f"{project_folder}/_version.py"))
 
-if _dev is not None:
-    __version__ = _tag_version + f".dev{_dev}"
+    _version = importlib.util.module_from_spec(_version_spec)
+    _version_spec.loader.exec_module(_version)
 
-else:
-    __version__ = _tag_version
+    return _version.__version__

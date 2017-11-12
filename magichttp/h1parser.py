@@ -23,6 +23,8 @@ from . import httputils
 
 import magicdict
 
+__all__ = ["H1Parser"]
+
 _CHUNKED_BODY = -1
 _ENDLESS_BODY = -2
 

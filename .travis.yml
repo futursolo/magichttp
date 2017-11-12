@@ -26,15 +26,17 @@ matrix:
 language: python
 
 install:
-  - python -m pip install pip setuptools --upgrade
+  - pip install pip setuptools --upgrade
 
-  - python -m pip install pipenv
+  - pip install pipenv
+
+  - pipenv check
 
   - pipenv lock -r > requirements.txt
   - pipenv lock -r -d > dev-requirements.txt
 
-  - python -m pip install mypy pycodestyle -U
-  - python -m pip install .[test]
+  - pip install mypy pycodestyle -U
+  - pip install .[test]
 
 # command to run tests
 script:

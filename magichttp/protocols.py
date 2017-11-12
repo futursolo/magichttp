@@ -105,7 +105,9 @@ class HttpServerProtocol(
         try:
             return await self._impl.read_request()
 
-        except exceptions.HttpConnectionClosedError as e:
+        except (
+                exceptions.HttpConnectionClosingError,
+                exceptions.HttpConnectionClosedError) as e:
             raise StopAsyncIteration from e
 
 
