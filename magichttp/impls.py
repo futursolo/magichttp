@@ -256,10 +256,10 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
         self._writer: Optional["streams.HttpResponseWriter"] = None
 
         self._reader_fur: \
-            "asyncio.Future[streams.HttpRequestReader]" = asyncio.Future()
+            Optional["asyncio.Future[streams.HttpRequestReader]"] = None
 
     def _set_read_exc(self, exc: Exception) -> None:
-        if not self._reader_fur.done():
+        if self._reader_fur is not None and not self._reader_fur.done():
             self._reader_fur.set_exception(exc)
 
         if self._reader is not None:
@@ -307,8 +307,19 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
             try:
                 self._try_raise_read_exc()
 
-                reader = await self._reader_fur
-                self._reader_fur = asyncio.Future()
+                try:
+                    if self._reader_fur is None:
+                        self._reader_fur = asyncio.Future()
+                        reader = await self._reader_fur
+
+                    else:
+                        reader = self._reader_fur.result()
+
+                except Exception:
+                    raise
+
+                finally:
+                    self._reader_fur = None
 
                 self.data_received()
 
@@ -417,7 +428,7 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
         if data:
             self._buf.extend(data)
 
-        if self._reader_fur.done():
+        if self._reader_fur is not None and self._reader_fur.done():
             return
 
         if self._reader is None:
@@ -437,6 +448,9 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
 
             self._reader = streams.HttpRequestReader(
                 impl=self, req_initial=req_initial)
+            if self._reader_fur is None:
+                self._reader_fur = asyncio.Future()
+
             self._reader_fur.set_result(self._reader)
 
             return
@@ -463,7 +477,7 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
                 self._set_read_state(_ReadState.Paused)
 
     async def close(self) -> None:
-        if len(self._buf) == 0 and (self._reader and self._writer) is None:
+        if (self._reader and self._writer) is None:
             self._close_conn()
 
         await super().close()
@@ -471,14 +485,14 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
     def eof_received(self) -> None:
         super().eof_received()
 
-        if not self._reader_fur.done():
+        if self._reader_fur is not None and not self._reader_fur.done():
             self._reader_fur.set_exception(
                 exceptions.HttpConnectionClosingError)
 
     def connection_lost(self, exc: Optional[BaseException]=None) -> None:
         super().connection_lost(exc)
 
-        if not self._reader_fur.done():
+        if self._reader_fur is not None and not self._reader_fur.done():
             self._reader_fur.set_exception(
                 exceptions.HttpConnectionClosedError)
 
@@ -492,14 +506,14 @@ class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
         self._writer: Optional[streams.HttpRequestWriter] = None
         self._reader: Optional[streams.HttpResponseReader] = None
 
-        self._reader_fur: "asyncio.Future[streams.HttpResponseReader]" = \
-            asyncio.Future()
+        self._reader_fur: Optional[
+            "asyncio.Future[streams.HttpResponseReader]"] = None
 
         self._read_finished = asyncio.Event()
         self._read_finished.set()
 
     def _set_read_exc(self, exc: Exception) -> None:
-        if not self._reader_fur.done():
+        if self._reader_fur is not None and not self._reader_fur.done():
             self._reader_fur.set_exception(exc)
 
         if self._reader is not None:
@@ -589,8 +603,19 @@ class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
 
         self._try_raise_read_exc()
 
-        reader = await self._reader_fur
-        self._reader_fur = asyncio.Future()
+        try:
+            if self._reader_fur is None:
+                self._reader_fur = asyncio.Future()
+                reader = await self._reader_fur
+
+            else:
+                reader = self._reader_fur.result()
+
+        except Exception:
+            raise
+
+        finally:
+            self._reader_fur = None
 
         self.data_received()
 
@@ -609,7 +634,7 @@ class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
         if data:
             self._buf.extend(data)
 
-        if self._reader_fur.done():
+        if self._reader_fur is not None and self._reader_fur.done():
             return
 
         if self._reader is None:
@@ -631,6 +656,9 @@ class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
             self._reader = streams.HttpResponseReader(
                 impl=self, res_initial=res_initial,
                 req_writer=self._writer)
+
+            if self._reader_fur is None:
+                self._reader_fur = asyncio.Future()
 
             self._reader_fur.set_result(self._reader)
 
@@ -660,7 +688,7 @@ class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
                 self._set_read_state(_ReadState.Paused)
 
     async def close(self) -> None:
-        if len(self._buf) == 0 and (self._reader and self._writer) is None:
+        if (self._reader and self._writer) is None:
             self._close_conn()
 
         await super().close()
@@ -668,13 +696,13 @@ class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
     def eof_received(self) -> None:
         super().eof_received()
 
-        if not self._reader_fur.done():
+        if self._reader_fur is not None and not self._reader_fur.done():
             self._reader_fur.set_exception(
                 exceptions.HttpConnectionClosingError)
 
     def connection_lost(self, exc: Optional[BaseException]=None) -> None:
         super().connection_lost(exc)
 
-        if not self._reader_fur.done():
+        if self._reader_fur is not None and not self._reader_fur.done():
             self._reader_fur.set_exception(
                 exceptions.HttpConnectionClosedError)

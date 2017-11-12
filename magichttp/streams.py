@@ -143,17 +143,25 @@ class BaseHttpStreamReader(abc.ABC):
 
                             raise exceptions.HttpStreamFinishedError
 
-                    await self._wait_for_data()
+                    try:
+                        await self._wait_for_data()
+
+                    except exceptions.HttpStreamFinishedError:
+                        continue
 
             elif n < 0:
-                while not self._finished:
+                while True:
                     if self._buf_is_full():
                         raise asyncio.LimitOverrunError(
                             "The buffer is full "
                             "before the stream reaches the end.",
                             self.buflen())
 
-                    await self._wait_for_data()
+                    try:
+                        await self._wait_for_data()
+
+                    except exceptions.HttpStreamFinishedError:
+                        break
 
             elif self.buflen() == 0:
                 await self._wait_for_data()
@@ -297,11 +305,12 @@ class BaseHttpStreamWriter(abc.ABC):
             if self._finished:
                 return
 
-            if self.buflen() == 0:
-                return
+            if self.buflen() >= 0:
+                data = bytes(self._buf)
+                self._buf.clear()  # type: ignore
 
-            data = bytes(self._buf)
-            self._buf.clear()  # type: ignore
+            else:
+                data = b""
 
             try:
                 await self._impl.flush_data(self, data)
@@ -327,11 +336,12 @@ class BaseHttpStreamWriter(abc.ABC):
 
             self._finished = True
 
-            if self.buflen() == 0:
-                return
+            if self.buflen() > 0:
+                data = bytes(self._buf)
+                self._buf.clear()  # type: ignore
 
-            data = bytes(self._buf)
-            self._buf.clear()  # type: ignore
+            else:
+                data = b""
 
             try:
                 await self._impl.flush_data(self, data, last_chunk=True)

@@ -372,10 +372,10 @@ class H1Parser:
             if maybe_current_chunk is None:
                 self._body_len_left = None
 
+                return None
+
             else:
                 current_chunk = maybe_current_chunk
-
-                return None
 
         elif self._body_len_left >= len(self._buf):
             current_chunk = bytes(self._buf)
