@@ -34,6 +34,7 @@ class BaseHttpStreamReader(abc.ABC):
         self._impl = impl
 
         self._protocol = self._impl._protocol
+        self._transport = self._impl._transport
 
         self._buf = bytearray()
 
@@ -44,6 +45,10 @@ class BaseHttpStreamReader(abc.ABC):
         self._read_lock = asyncio.Lock()
 
         self._waiting_for_data_fur: Optional["asyncio.Future[None]"] = None
+
+    @property
+    def transport(self) -> asyncio.Transport:
+        return self._transport
 
     def buflen(self) -> int:
         """

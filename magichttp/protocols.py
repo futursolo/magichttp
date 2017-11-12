@@ -44,9 +44,19 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
 
         self._open_after_eof = True
 
+        self._transport: Optional[asyncio.Transport] = None
+
     def connection_made(  # type: ignore
             self, transport: asyncio.Transport) -> None:
         self._open_after_eof = transport.get_extra_info("sslcontext") is None
+
+        self._transport = transport
+
+    @property
+    def transport(self) -> asyncio.Transport:
+        assert self._transport is not None
+
+        return self._transport
 
     def pause_writing(self) -> None:
         if not self._drained_event.is_set():
