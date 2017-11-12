@@ -433,7 +433,6 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
         await super().close()
 
 
-
 class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
     def __init__(
         self, *, protocol: "protocols.BaseHttpProtocol",
