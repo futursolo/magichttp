@@ -60,7 +60,7 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
 
         self._drained_event.set()
 
-    async def _flush_internal_buffer(self) -> None:
+    async def _flush(self) -> None:
         if self._drained_event.is_set():
             return
 
@@ -78,10 +78,14 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
 
         return self._open_after_eof
 
-    def connection_lost(self, exc: Optional[BaseException]) -> None:
+    async def close(self) -> None:
         assert self._impl is not None
 
-        self._impl.connection_lost(exc)
+        await self._impl.close()
+
+    def connection_lost(self, exc: Optional[BaseException]) -> None:
+        if self._impl is not None:
+            self._impl.connection_lost(exc)
 
 
 class HttpServerProtocol(
@@ -101,8 +105,8 @@ class HttpServerProtocol(
         try:
             return await self._impl.read_request()
 
-        except exceptions.HttpConnectionClosedError:
-            raise StopAsyncIteration from None
+        except exceptions.HttpConnectionClosedError as e:
+            raise StopAsyncIteration from e
 
 
 class HttpClientProtocol(BaseHttpProtocol):

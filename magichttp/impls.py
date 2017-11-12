@@ -31,6 +31,12 @@ import functools
 import enum
 
 
+class _ReadState(enum.IntEnum):
+    Reading = 1
+    Paused = 0
+    Finished = -1  # EOF.
+
+
 class BaseHttpImpl(abc.ABC):
     def __init__(
         self, *, protocol: "protocols.BaseHttpProtocol",
@@ -38,23 +44,60 @@ class BaseHttpImpl(abc.ABC):
         self._protocol = protocol
         self._transport = transport
 
-        self._paused = False
-
         self._loop = asyncio.get_event_loop()
 
-    def _pause_reading(self) -> None:
-        if self._paused:
+        self._read_state = _ReadState.Reading
+        self._read_state_changed: "asyncio.Future[_ReadState]" = \
+            asyncio.Future()
+
+        self._eof_written = asyncio.Event()
+
+        self._conn_closing = asyncio.Event()
+        self._conn_closed = asyncio.Event()
+
+    def _set_read_state(self, new_read_state: _ReadState) -> None:
+        if self._read_state == new_read_state:
             return
 
-        self._transport.pause_reading()
-        self._paused = True
+        if self._read_state == _ReadState.Finished:
+            raise RuntimeError(
+                "You Cannot Recover State from A Finished Transport.")
 
-    def _resume_reading(self) -> None:
-        if not self._paused:
+        self._read_state = new_read_state
+
+        if self._read_state == _ReadState.Reading:
+            self._transport.resume_reading()
+
+        elif self._read_state == _ReadState.Paused:
+            self._transport.pause_reading()
+
+        self._read_state_changed.set_result(self._read_state)
+        self._read_state_changed = asyncio.Future()
+
+    async def _wait_read_state(self, state_needed: _ReadState) -> None:
+        if self._read_state == state_needed:
             return
 
-        self._transport.resume_reading()
-        self._paused = False
+        while ((await self._read_state_changed) != state_needed):
+            pass
+
+    def _close_conn(self) -> None:
+        self._write_eof()
+
+        self._transport.close()
+
+    def _write_eof(self) -> None:
+        if self._eof_written.is_set():
+            return
+
+        if self._transport.can_write_eof():
+            self._transport.write_eof()
+
+        self._eof_written.set()
+        self._conn_closing.set()
+
+        if self._read_state == _ReadState.Finished:
+            self._close_conn()
 
     @abc.abstractmethod
     async def flush_data(
@@ -63,22 +106,22 @@ class BaseHttpImpl(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def abort_request(
-        self, req_stream: Union[
-            "streams.HttpRequestReader", "streams.HttpRequestWriter"]) -> None:
-        raise NotImplementedError
-
-    @abc.abstractmethod
     def data_received(self, data: Optional[bytes]=None) -> None:
         raise NotImplementedError
 
-    @abc.abstractmethod
     def eof_received(self) -> None:
-        raise NotImplementedError
+        self._set_read_state(_ReadState.Finished)
+        self._conn_closing.set()
 
-    @abc.abstractmethod
     def connection_lost(self, exc: Optional[BaseException]) -> None:
-        raise NotImplementedError
+        self._set_read_state(_ReadState.Finished)
+        self._conn_closing.set()
+        self._conn_closed.set()
+
+    async def close(self) -> None:
+        self._conn_closing.set()
+
+        await self._conn_closed.wait()
 
 
 class BaseHttpServerImpl(BaseHttpImpl):
@@ -88,9 +131,14 @@ class BaseHttpServerImpl(BaseHttpImpl):
 
     @abc.abstractmethod  # Server-side Only.
     async def write_response(
-        self, req_reader: "streams.HttpRequestReader",
+        self, req_reader: Optional["streams.HttpRequestReader"],
         res_initial: initials.HttpResponseInitial) -> \
             "streams.HttpResponseWriter":
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def abort_request(
+            self, req_stream: Optional["streams.HttpRequestReader"]) -> None:
         raise NotImplementedError
 
 
@@ -107,6 +155,11 @@ class BaseHttpClientImpl(BaseHttpImpl):
             "streams.HttpRequestWriter":
         raise NotImplementedError
 
+    @abc.abstractmethod
+    async def abort_request(
+            self, req_stream: "streams.HttpRequestWriter") -> None:
+        raise NotImplementedError
+
 
 class BaseH1Impl(BaseHttpImpl):
     def __init__(
@@ -114,67 +167,78 @@ class BaseH1Impl(BaseHttpImpl):
             transport: asyncio.Transport) -> None:
         super().__init__(protocol=protocol, transport=transport)
 
-        self._parser: Optional[h1parser.H1Parser] = None
-        self._composer: Optional[h1composer.H1Composer] = None
-
-        self._incoming_buf = bytearray()
-
-        self._exc: Optional[Exception] = None
-
-        self._create_reader_lock = asyncio.Lock()
-
         self._using_https = self._transport.get_extra_info(
-            "sslcontext") is not None
+            "sslcontext") is None
 
-        self._stream_finished = asyncio.Event()
-        self._stream_finished.set()
+        self._buf = bytearray()
 
-        self._reader_ready = asyncio.Event()
+        self._parser: h1parser.H1Parser = h1parser.H1Parser(
+            self._buf, self._using_https)
+        self._composer: h1composer.H1Composer = h1composer.H1Composer(
+            self._using_https)
 
-        self._eof_event = asyncio.Event()
-        self._close_event = asyncio.Event()
+        self._init_lock = asyncio.Lock()
 
-    def _try_raise_exc(self) -> None:
-        if self._exc is not None:
-            raise self._exc
+        self._read_exc: Optional[Exception] = None
+        self._write_exc: Optional[Exception] = None
 
-        if self._eof_event.is_set() or self._close_event.is_set():
+    def _set_read_exc(self, exc: Exception) -> None:
+        if self._read_exc is not None:
+            return
+
+        self._conn_closing.set()
+
+        self._read_exc = exc
+
+    def _set_write_exc(self, exc: Exception) -> None:
+        if self._write_exc is not None:
+            return
+
+        self._conn_closing.set()
+
+        self._write_exc = exc
+
+    def _set_exc(self, exc: Exception) -> None:
+        self._set_read_exc(exc)
+        self._set_write_exc(exc)
+
+    def _try_raise_read_exc(self) -> None:
+        if self._read_exc is not None:
+            raise self._read_exc
+
+        if self._conn_closed.is_set():
             raise exceptions.HttpConnectionClosedError
 
-    def reset(self) -> None:
-        self._parser = None
-        self._composer = None
+        if self._conn_closing.is_set():
+            raise exceptions.HttpConnectionClosingError
 
-    async def flush_data(
-        self, writer: "streams.BaseHttpStreamWriter", data: bytes,
-            last_chunk: bool=False) -> None:
-        raise NotImplementedError
+    def _try_raise_write_exc(self) -> None:
+        if self._write_exc is not None:
+            raise self._write_exc
 
-    async def abort_request(
-        self, req_stream: Union[
-            "streams.HttpRequestReader", "streams.HttpRequestWriter"]) -> None:
-        raise NotImplementedError
+        if self._conn_closed.is_set():
+            raise exceptions.HttpConnectionClosedError
 
-    def eof_received(self) -> None:
-        self._eof_event.set()
+        if self._eof_written.is_set():
+            raise exceptions.HttpConnectionClosingError
 
-        if self._exc is not None:
-            self._exc = exceptions.HttpConnectionClosedError()
-            self._exc.__cause__ = EOFError()
+    def _try_raise_any_exc(self) -> None:
+        self._try_raise_read_exc()
+        self._try_raise_write_exc()
 
-        self._stream_finished.set()
+    def resume_reading(self) -> None:
+        if self._read_state == _ReadState.Paused:
+            self._try_raise_read_exc()
+            self._set_read_state(_ReadState.Reading)
 
     def connection_lost(self, exc: Optional[BaseException]) -> None:
-        self._eof_event.set()
-        self._close_event.set()
+        super().connection_lost(exc)
 
-        if self._exc is not None:
-            self._exc = exceptions.HttpConnectionClosedError()
+        if exc is not None:
+            final_exc = exceptions.HttpConnectionClosedError()
+            final_exc.__cause__ = exc
 
-            if exc is not None:
-                self._exc.__cause__ = exc
-
-        self._stream_finished.set()
+            self._set_exc(final_exc)
 
 
 class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
@@ -183,74 +247,145 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
             transport: asyncio.Transport) -> None:
         super().__init__(protocol=protocol, transport=transport)
 
-        self._reader: Optional[streams.HttpRequestReader] = None
-        self._writer: Optional[streams.HttpResponseWriter] = None
+        self._reader: Optional["streams.HttpRequestReader"] = None
+        self._writer: Optional["streams.HttpResponseWriter"] = None
+
+        self._reader_fur: \
+            "asyncio.Future[streams.HttpRequestReader]" = asyncio.Future()
+
+    def _set_read_exc(self, exc: Exception) -> None:
+        if not self._reader_fur.done():
+            self._reader_fur.set_exception(exc)
+
+        if self._reader is not None:
+            self._reader._append_exc(exc)
+
+        super()._set_read_exc(exc)
 
     async def read_request(self) -> "streams.HttpRequestReader":
-        async with self._create_reader_lock:
-            self._try_raise_exc()
+        async with self._init_lock:
+            self._try_raise_read_exc()
 
-            await self._reader_ready.wait()
+            reader = await self._reader_fur
+            self._reader_fur = asyncio.Future()
 
-            self._try_raise_exc()
+            self.data_received()
 
-            assert self._reader is not None
-            return self._reader
+            return reader
 
     async def write_response(
-        self, req_reader: "streams.HttpRequestReader",
+        self, req_reader: Optional["streams.HttpRequestReader"],
         res_initial: initials.HttpResponseInitial) -> \
             "streams.HttpResponseWriter":
-        raise NotImplementedError
+        if req_reader is None:
+            if self._read_exc is None:
+                raise ValueError(
+                    "You MUST provide the request reader "
+                    "when there's no error during reading.")
+
+        elif self._reader is not req_reader:
+            raise ValueError("Reader Mismatch.")
+
+        if self._writer is not None:
+            raise RuntimeError("A Writer has been created.")
+
+        self._try_raise_write_exc()
+
+        res_bytes = self._composer.compose_response(
+            res_initial,
+            req_initial=req_reader.initial if req_reader else None)
+
+        self._transport.write(res_bytes)
+
+        await self._protocol._flush()
+
+        self._writer = streams.HttpResponseWriter(
+            impl=self,
+            res_initial=res_initial,
+            req_reader=self._reader)
+
+        return self._writer
+
+    async def flush_data(
+        self, writer: "streams.BaseHttpStreamWriter", data: bytes,
+            last_chunk: bool=False) -> None:
+        if self._writer is not writer:
+            raise ValueError("Writer Mismatch.")
+
+        self._try_raise_write_exc()
+
+        body_chunk = self._composer.compose_body(data, last_chunk=last_chunk)
+        self._transport.write(body_chunk)
+
+        await self._protocol._flush()
+
+        if last_chunk:
+            self._reader = None
+            self._writer = None
+
+            if self._conn_closing.is_set():
+                self._close_conn()
+
+            else:
+                self.data_received()
+
+    async def abort_request(
+            self, req_stream: Optional["streams.HttpRequestReader"]) -> None:
+        if req_stream is None:
+            if self._read_exc is None:
+                raise ValueError(
+                    "You MUST provide request reader if there's "
+                    "no error during reading.")
+
+        elif req_stream is not self._reader:
+            raise ValueError("Reader Mismatch.")
+
+        self._set_exc(exceptions.HttpStreamAbortedError())
+
+        self._close_conn()
 
     def data_received(self, data: Optional[bytes]=None) -> None:
         if data:
-            self._incoming_buf.extend(data)
+            self._buf.extend(data)
 
-        if self._parser is None:
-            self._parser = h1parser.H1Parser(
-                self._incoming_buf, using_https=self._using_https)
+        if self._reader_fur.done():
+            return
 
         if self._reader is None:
-            if len(self._incoming_buf) > self._protocol._INITIAL_BUFFER_LIMIT:
-                self._pause_reading()
-
             req_initial = self._parser.parse_request()
 
             if req_initial is None:
-                if self._paused:
-                    self._exc = exceptions.IncomingInitialTooLarge()
+                if len(self._buf) > self._protocol._INITIAL_BUFFER_LIMIT:
+                    self._set_read_state(_ReadState.Paused)
+                    self._set_read_exc(exceptions.IncomingInitialTooLarge())
 
-                    self._transport.close()
-                    self._reader_ready.set()
+                    # Read Finished.
 
                 return
 
             self._reader = streams.HttpRequestReader(
                 impl=self, req_initial=req_initial)
+            self._reader_fur.set_result(self._reader)
 
-            self._stream_finished.clear()
-            self._reader_ready.set()
-
-        if len(self._incoming_buf) < self._protocol._STREAM_BUFFER_LIMIT:
-            self._resume_reading()
+            return
 
         while True:
             body_parts = self._parser.parse_body()
 
             if body_parts is None:
                 self._reader._append_end()
-                self._pause_reading()
 
                 break  # Finished.
 
             elif len(body_parts) == 0:
-                self._resume_reading()
+                if len(self._buf) > self._protocol._STREAM_BUFFER_LIMIT:
+                    self._set_read_state(_ReadState.Paused)
+                    self._set_read_exc(exceptions.IncomingEntityTooLarge())
 
                 break  # Not Finished.
 
-            else:
-                self._reader._append_data(body_parts)
+            elif self._reader._append_data(body_parts):
+                self._set_read_state(_ReadState.Paused)
 
 
 class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
@@ -259,51 +394,106 @@ class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
             transport: asyncio.Transport) -> None:
         super().__init__(protocol=protocol, transport=transport)
 
-        self._reader: Optional[streams.HttpResponseReader] = None
         self._writer: Optional[streams.HttpRequestWriter] = None
+        self._reader: Optional[streams.HttpResponseReader] = None
+
+        self._reader_fur: "asyncio.Future[streams.HttpResponseReader]" = \
+            asyncio.Future()
+
+        self._read_finished = asyncio.Event()
+        self._read_finished.set()
+
+    def _set_read_exc(self, exc: Exception) -> None:
+        if not self._reader_fur.done():
+            self._reader_fur.set_exception(exc)
+
+        if self._reader is not None:
+            self._reader._append_exc(exc)
+
+        super()._set_read_exc(exc)
 
     async def write_request(
         self, req_initial: initials.HttpRequestInitial) -> \
             "streams.HttpRequestWriter":
-        raise NotImplementedError
+        async with self._init_lock:
+            self._try_raise_write_exc()
+
+            await self._read_finished.wait()
+
+            refined_initial, req_bytes = self._composer.compose_request(
+                req_initial)
+
+            self._transport.write(req_bytes)
+
+            await self._protocol._flush()
+
+            self._writer = streams.HttpRequestWriter(
+                impl=self, req_initial=refined_initial)
+
+            self._read_finished.clear()
+
+            return self._writer
+
+    async def flush_data(
+        self, writer: "streams.BaseHttpStreamWriter", data: bytes,
+            last_chunk: bool=False) -> None:
+        if self._writer is not writer:
+            raise ValueError("Writer Mismatch.")
+
+        self._try_raise_write_exc()
+
+        body_chunk = self._composer.compose_body(data, last_chunk=last_chunk)
+        self._transport.write(body_chunk)
+
+        await self._protocol._flush()
 
     async def read_response(
         self, req_writer: "streams.HttpRequestWriter") -> \
             "streams.HttpResponseReader":
-        assert req_writer is self._writer
+        if req_writer is not self._writer:
+            raise ValueError("Writer Mismatch.")
 
-        async with self._create_reader_lock:
-            self._try_raise_exc()
+        if self._reader is not None:
+            raise ValueError("A reader has been created.")
 
-            await self._reader_ready.wait()
+        self._try_raise_read_exc()
 
-            self._try_raise_exc()
+        reader = await self._reader_fur
+        self._reader_fur = asyncio.Future()
 
-            assert self._reader is not None
-            return self._reader
+        self.data_received()
+
+        return reader
+
+    async def abort_request(
+            self, req_stream: "streams.HttpRequestWriter") -> None:
+        if req_stream is not self._writer:
+            raise ValueError("Writer Mismatch.")
+
+        self._set_exc(exceptions.HttpStreamAbortedError())
+
+        self._close_conn()
 
     def data_received(self, data: Optional[bytes]=None) -> None:
         if data:
-            self._incoming_buf.extend(data)
+            self._buf.extend(data)
 
-        if self._parser is None:
-            self._parser = h1parser.H1Parser(
-                self._incoming_buf, using_https=self._using_https)
+        if self._reader_fur.done():
+            return
 
         if self._reader is None:
-            if len(self._incoming_buf) > self._protocol._INITIAL_BUFFER_LIMIT:
-                self._pause_reading()
-
             assert self._writer is not None
             res_initial = self._parser.parse_response(
                 self._writer.initial)
 
             if res_initial is None:
-                if self._paused:
-                    self._exc = exceptions.IncomingInitialTooLarge()
+                if len(self._buf) > self._protocol._INITIAL_BUFFER_LIMIT:
+                    self._set_read_state(_ReadState.Paused)
+                    self._set_read_exc(exceptions.IncomingInitialTooLarge())
 
-                    self._transport.close()
-                    self._reader_ready.set()
+                    self._close_conn()
+
+                    # Read Finished.
 
                 return
 
@@ -311,24 +501,26 @@ class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
                 impl=self, res_initial=res_initial,
                 req_writer=self._writer)
 
-        self._reader_ready.set()
+            self._reader_fur.set_result(self._reader)
 
-        if len(self._incoming_buf) < self._protocol._STREAM_BUFFER_LIMIT:
-            self._resume_reading()
+            return
 
         while True:
             body_parts = self._parser.parse_body()
 
             if body_parts is None:
                 self._reader._append_end()
-                self._pause_reading()
 
                 break  # Finished.
 
             elif len(body_parts) == 0:
-                self._resume_reading()
+                if len(self._buf) > self._protocol._STREAM_BUFFER_LIMIT:
+                    self._set_read_state(_ReadState.Paused)
+                    self._set_read_exc(exceptions.IncomingEntityTooLarge())
+
+                    self._close_conn()
 
                 break  # Not Finished.
 
-            else:
-                self._reader._append_data(body_parts)
+            elif self._reader._append_data(body_parts):
+                self._set_read_state(_ReadState.Paused)

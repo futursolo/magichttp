@@ -25,7 +25,14 @@ class HttpStreamFinishedError(EOFError):
     pass
 
 
-class HttpConnectionClosedError(ConnectionError):
+class HttpConnectionClosingError(EOFError):
+    """
+    Read or write after the EOF is written or received.
+    """
+    pass
+
+
+class HttpConnectionClosedError(HttpConnectionClosingError, ConnectionError):
     """
     Read or write the stream after the connection it it attached to is closed.
     """

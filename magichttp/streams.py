@@ -15,6 +15,8 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+from typing import Optional
+
 from . import initials
 from . import impls
 
@@ -179,7 +181,7 @@ class BaseHttpStreamWriter(abc.ABC):
 
 class HttpRequestReader(BaseHttpStreamReader):
     def __init__(
-        self, impl: "impls.BaseHttpImpl",
+        self, impl: "impls.BaseHttpServerImpl",
             req_initial: initials.HttpRequestInitial) -> None:
         super().__init__(impl)
 
@@ -199,12 +201,14 @@ class HttpRequestReader(BaseHttpStreamReader):
         raise NotImplementedError
 
     async def abort(self) -> None:
+        assert isinstance(self._impl, impls.BaseHttpServerImpl)
+
         await self._impl.abort_request(self)
 
 
 class HttpRequestWriter(BaseHttpStreamWriter):
     def __init__(
-        self, impl: "impls.BaseHttpImpl",
+        self, impl: "impls.BaseHttpClientImpl",
             req_initial: initials.HttpRequestInitial) -> None:
         super().__init__(impl)
 
@@ -222,12 +226,14 @@ class HttpRequestWriter(BaseHttpStreamWriter):
         raise NotImplementedError
 
     async def abort(self) -> None:
+        assert isinstance(self._impl, impls.BaseHttpClientImpl)
+
         await self._impl.abort_request(self)
 
 
 class HttpResponseReader(BaseHttpStreamReader):
     def __init__(
-        self, impl: "impls.BaseHttpImpl",
+        self, impl: "impls.BaseHttpClientImpl",
         res_initial: initials.HttpResponseInitial,
             req_writer: HttpRequestWriter) -> None:
         super().__init__(impl)
@@ -244,14 +250,16 @@ class HttpResponseReader(BaseHttpStreamReader):
         return self._req_writer
 
     async def abort(self) -> None:
+        assert isinstance(self._impl, impls.BaseHttpClientImpl)
+
         await self._impl.abort_request(self.req_writer)
 
 
 class HttpResponseWriter(BaseHttpStreamWriter):
     def __init__(
-        self, impl: "impls.BaseHttpImpl",
+        self, impl: "impls.BaseHttpServerImpl",
             res_initial: initials.HttpResponseInitial,
-            req_reader: HttpRequestReader) -> None:
+            req_reader: Optional[HttpRequestReader]) -> None:
         super().__init__(impl)
 
         self._res_initial = res_initial
@@ -263,7 +271,14 @@ class HttpResponseWriter(BaseHttpStreamWriter):
 
     @property
     def req_reader(self) -> HttpRequestReader:
+        if self._req_reader is None:
+            raise AttributeError(
+                "HttpRequestReader is unavailable due to an "
+                "Error during reading.")
+
         return self._req_reader
 
     async def abort(self) -> None:
+        assert isinstance(self._impl, impls.BaseHttpServerImpl)
+
         await self._impl.abort_request(self.req_reader)
