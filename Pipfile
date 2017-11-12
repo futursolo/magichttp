@@ -15,8 +15,3 @@ pycodestyle = "*"
 [packages]
 
 magicdict = "*"
-
-
-[requires]
-
-python_version = "3.6"
