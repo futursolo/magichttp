@@ -306,6 +306,9 @@ class BaseHttpStreamWriter(abc.ABC):
             try:
                 await self._impl.flush_data(self, data)
 
+            except asyncio.CancelledError:
+                raise
+
             except Exception as e:
                 self._append_exc(e)
 
@@ -332,6 +335,9 @@ class BaseHttpStreamWriter(abc.ABC):
 
             try:
                 await self._impl.flush_data(self, data, last_chunk=True)
+
+            except asyncio.CancelledError:
+                raise
 
             except Exception as e:
                 self._append_exc(e)

@@ -209,7 +209,7 @@ class H1Parser:
             method,
             version=version,
             uri=path,
-            authority=headers[b"host"],
+            authority=headers.get(b"host", None),
             scheme=b"https" if self._using_https else b"http",
             headers=headers)
 
@@ -291,7 +291,7 @@ class H1Parser:
             del self._buf[0:pos + 2]
 
             len_bytes = list(
-                httputils.parse_semicolon_header(len_bytes).keys())[0]
+                httputils.parse_semicolon_header(bytes(len_bytes)).keys())[0]
 
             try:
                 len_str = len_bytes.decode("latin-1")

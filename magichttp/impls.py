@@ -367,6 +367,9 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
             res_initial,
             req_initial=req_reader.initial if req_reader else None)
 
+        if refined_initial.headers[b"Connection"].lower() != b"keep-alive":
+            self._conn_closing.set()
+
         self._transport.write(res_bytes)
 
         await self._protocol._flush()

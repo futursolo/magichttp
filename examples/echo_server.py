@@ -76,24 +76,31 @@ class EchoHttpServer:
 
     async def _write_echo(
             self, req_reader: magichttp.HttpRequestReader) -> None:
+        print(f"New Request: {req_reader.initial}")
         try:
-            await req_reader.read()
+            body = await req_reader.read()
 
         except magichttp.HttpStreamFinishedError:
-            pass
+            body = b""
+        print(f"Request Body: {body}")
 
         res_initial = magichttp.HttpResponseInitial(
-            200, headers={b"Content-Type": b"text/plain"},
-            version=magichttp.HttpVersion.V1_1)
+            200, headers={b"Content-Type": b"text/plain"})
 
         writer = await req_reader.write_response(res_initial)
+        print(f"Response Sent: {writer.initial}")
 
         writer.write(b"Got it!")
+        print(f"Response Body: b'Got it!'")
 
         await writer.finish()
+        print(f"Stream Finished.")
 
     async def _read_requests(self, protocol: _EchoServerProtocol) -> None:
         await protocol.conn_made_fur
+
+        ip, port, *_ = protocol.transport.get_extra_info("peername")
+        print(f"New Connection: {ip}:{port}")
 
         try:
             async for req_reader in protocol:
@@ -103,9 +110,12 @@ class EchoHttpServer:
             raise
 
         except Exception:
+            traceback.print_exc()
+
             await protocol.close()
 
-            traceback.print_exc()
+        finally:
+            print("Connection lost.")
 
     async def close(self) -> None:
         if self._srv is None:
@@ -117,9 +127,12 @@ class EchoHttpServer:
             await asyncio.wait(
                 [protocol.close() for protocol in self._protocols])
 
+        await asyncio.sleep(0)
+
         if self._tsks:
             for tsk in self._tsks:
-                tsk.cancel()
+                if not tsk.done():
+                    tsk.cancel()
 
             await asyncio.wait(list(self._tsks))
 

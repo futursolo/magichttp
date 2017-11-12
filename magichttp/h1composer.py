@@ -100,18 +100,17 @@ class H1Composer:
             else:
                 refined_req_headers[b"connection"] = b"Close"
 
-        if b"transfer-encoding" in req_initial.headers.headers.keys():
+        if b"transfer-encoding" in req_initial.headers.keys():
             self._determine_if_chunked_body_is_used(
                 req_initial.headers[b"transfer-encoding"])
 
-        if (not self._using_chunked_body) and \
-                b"content-length" not in req_initial.headers.keys():
-            raise exceptions.MalformedHttpInitial(
-                "Content-Length or Transfer-Encoding MUST "
-                "be presented in the Request.")
-
-        else:
+        if self._using_chunked_body is None:
+            refined_req_headers.setdefault(b"content-length", b"0")
             self._using_chunked_body = False
+
+        if req_initial.authority is not None and \
+                b"host" not in req_initial.headers.keys():
+            refined_req_headers[b"host"] = req_initial.authority
 
         refined_req_initial = initials.HttpRequestInitial(
             req_initial.method,
@@ -181,13 +180,16 @@ class H1Composer:
             self._determine_if_chunked_body_is_used(
                 res_initial.headers.headers[b"transfer-encoding"])
 
+        elif b"content-length" in res_initial.headers.keys():
+            self._using_chunked_body = False
+
         elif version == initials.HttpVersion.V1_1:
             refined_res_headers[b"transfer-encoding"] = b"Chunked"
-
             self._using_chunked_body = True
 
         else:
             refined_res_headers[b"connection"] = b"Close"
+            self._using_chunked_body = False
 
         refined_res_initial = initials.HttpResponseInitial(
             res_initial.status_code, version=version,

@@ -154,3 +154,20 @@ class HttpResponseInitial:
     @property
     def headers(self) -> magicdict.FrozenTolerantMagicDict[bytes, bytes]:
         return self._headers
+
+    def __repr__(self) -> str:
+        parts: "collections.OrderedDict[str, str]" = collections.OrderedDict([
+            ("status_code", repr(self._status_code))
+        ])
+
+        if self._version is not None:
+            parts["version"] = repr(self._version)
+
+        parts["headers"] = self._headers
+
+        args_repr = ", ".join([f"{k}={v}" for k, v in parts.items()])
+
+        return f"{self.__class__.__name__}({args_repr})"
+
+    def __str__(self) -> str:
+        return repr(self)
