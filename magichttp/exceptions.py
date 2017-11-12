@@ -17,8 +17,11 @@
 
 from typing import Callable, Awaitable, Optional
 
-from . import initials
-from . import streams
+import typing
+
+if typing.TYPE_CHECKING:
+    from . import initials
+    from . import streams
 
 __all__ = [
     "HttpStreamFinishedError",
@@ -27,7 +30,6 @@ __all__ = [
     "HttpStreamAbortedError",
     "MalformedHttpMessage",
     "MalformedHttpInitial",
-    "IncomingBodyLengthRequired",
     "IncomingEntityTooLarge",
     "IncomingInitialTooLarge",
     "HttpRequestInitialRequired"]

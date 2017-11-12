@@ -465,6 +465,20 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
 
         await super().close()
 
+    def eof_received(self) -> None:
+        super().eof_received()
+
+        if not self._reader_fur.done():
+            self._reader_fur.set_exception(
+                exceptions.HttpConnectionClosingError)
+
+    def connection_lost(self, exc: Optional[BaseException]=None) -> None:
+        super().connection_lost(exc)
+
+        if not self._reader_fur.done():
+            self._reader_fur.set_exception(
+                exceptions.HttpConnectionClosedError)
+
 
 class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
     def __init__(
@@ -647,3 +661,17 @@ class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
             self._close_conn()
 
         await super().close()
+
+    def eof_received(self) -> None:
+        super().eof_received()
+
+        if not self._reader_fur.done():
+            self._reader_fur.set_exception(
+                exceptions.HttpConnectionClosingError)
+
+    def connection_lost(self, exc: Optional[BaseException]=None) -> None:
+        super().connection_lost(exc)
+
+        if not self._reader_fur.done():
+            self._reader_fur.set_exception(
+                exceptions.HttpConnectionClosedError)

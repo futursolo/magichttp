@@ -99,17 +99,17 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
 
 
 class HttpServerProtocol(
-        BaseHttpProtocol, AsyncIterator[streams.HttpRequestReader]):
+        BaseHttpProtocol, AsyncIterator["streams.HttpRequestReader"]):
     def connection_made(  # type: ignore
             self, transport: asyncio.Transport) -> None:
         self._impl = impls.H1ServerImpl(protocol=self, transport=transport)
 
         super().connection_made(transport)
 
-    def __aiter__(self) -> AsyncIterator[streams.HttpRequestReader]:
+    def __aiter__(self) -> AsyncIterator["streams.HttpRequestReader"]:
         return self
 
-    async def __anext__(self) -> streams.HttpRequestReader:
+    async def __anext__(self) -> "streams.HttpRequestReader":
         assert isinstance(self._impl, impls.BaseHttpServerImpl)
 
         try:
@@ -130,7 +130,7 @@ class HttpClientProtocol(BaseHttpProtocol):
 
     async def write_request(
         self, req_initial: initials.HttpRequestInitial) -> \
-            streams.HttpRequestWriter:
+            "streams.HttpRequestWriter":
         assert isinstance(self._impl, impls.BaseHttpClientImpl)
 
         return await self._impl.write_request(req_initial)

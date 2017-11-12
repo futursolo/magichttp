@@ -30,18 +30,20 @@ class _EchoServerProtocol(magichttp.HttpServerProtocol):
 
         self.conn_made_fur: "asyncio.Future[None]" = asyncio.Future()
 
-    def connection_made(self, transport: asyncio.Transport) -> None:
+    def connection_made(  # type: ignore
+            self, transport: asyncio.Transport) -> None:
         super().connection_made(transport)
 
         if not self.conn_made_fur.done():
             self.conn_made_fur.set_result(None)
 
-    def connection_lost(self, exc: Exception) -> None:
+    def connection_lost(self, exc: Optional[BaseException]=None) -> None:
         super().connection_lost(exc)
 
         if not self.conn_made_fur.done():
             e = ConnectionError()
-            e.__cause__ = exc
+            if exc:
+                e.__cause__ = exc
             self.conn_made_fur.set_exception(e)
 
 
@@ -93,17 +95,17 @@ class EchoHttpServer:
     async def _read_requests(self, protocol: _EchoServerProtocol) -> None:
         await protocol.conn_made_fur
 
-        while True:
-            try:
-                async for req_reader in protocol:
-                    await self._write_echo(req_reader)
+        try:
+            async for req_reader in protocol:
+                await self._write_echo(req_reader)
 
-            except Exception:
-                await protocol.close()
+        except asyncio.CancelledError:
+            raise
 
-                traceback.print_exc()
+        except Exception:
+            await protocol.close()
 
-                break
+            traceback.print_exc()
 
     async def close(self) -> None:
         if self._srv is None:
@@ -111,11 +113,15 @@ class EchoHttpServer:
 
         self._srv.close()
 
-        for protocol in self._protocols:
-            await protocol.close()
+        if self._protocols:
+            await asyncio.wait(
+                [protocol.close() for protocol in self._protocols])
 
-        for tsk in self._tsks:
-            await self._tsk
+        if self._tsks:
+            for tsk in self._tsks:
+                tsk.cancel()
+
+            await asyncio.wait(list(self._tsks))
 
         await self._srv.wait_closed()
 
