@@ -19,6 +19,7 @@ from typing import Optional
 
 from . import initials
 from . import impls
+from . import exceptions
 
 import abc
 import asyncio
@@ -34,39 +35,135 @@ class BaseHttpStreamReader(abc.ABC):
 
         self._protocol = self._impl._protocol
 
-        self._buffer = bytearray()
+        self._buf = bytearray()
+
+        self._exc: Optional[Exception] = None
 
         self._finished = False
 
         self._read_lock = asyncio.Lock()
 
+        self._waiting_for_data_fur: Optional["asyncio.Future[None]"] = None
+
     def buflen(self) -> int:
         """
         Return the length of the internal buffer.
         """
-        return len(self._buffer)
+        return len(self._buf)
+
+    def _data_arrived(self) -> None:
+        if self._waiting_for_data_fur is not None:
+            if not self._waiting_for_data_fur.done():
+                self._waiting_for_data_fur.set_result(None)
+
+            self._waiting_for_data_fur = None
+
+    def _buf_is_full(self) -> bool:
+        return self.buflen() > self._protocol._STREAM_BUFFER_LIMIT
+
+    @abc.abstractmethod
+    def _resume_reading(self) -> None:
+        raise NotImplementedError
+
+    async def _wait_for_data(self) -> None:
+        if self._finished:
+            raise exceptions.HttpStreamFinishedError from self._exc
+
+        self._resume_reading()
+
+        if self._waiting_for_data_fur is None:
+            self._waiting_for_data_fur = asyncio.Future()
+
+        await self._waiting_for_data_fur
 
     def _append_data(self, data: bytes) -> bool:
-        self._buffer += data
-        return self.buflen() > self._protocol._STREAM_BUFFER_LIMIT
+        if not data:
+            return False
+
+        self._buf += data
+
+        self._data_arrived()
+
+        return self._buf_is_full()
 
     def _append_end(self) -> None:
         self._finished = True
 
+        self._data_arrived()
+
     def _append_exc(self, exc: Exception) -> None:
-        raise NotImplementedError
+        if self._exc is not None:
+            return
+
+        self._exc = exc
+        self._finished = True
+
+        self._data_arrived()
 
     async def read(self, n: int=-1, exactly: bool=False) -> bytes:
         """
         Read at most n bytes data or if exactly is `True`,
-        read exactly n bytes data. If the eof reached before
-        the buffer has the exact same number of data the you want, if will
+        read exactly n bytes data. If the end reached before
+        the buffer has the length of data the you want, it will
         raise an `asyncio.IncompleteReadError`.
 
         When finished() is True, this method will raise a
-        :class:`exceptions.StreamEOFError`.
+        :class:`exceptions.HttpStreamFinishedError`.
         """
-        raise NotImplementedError
+        if n == 0:
+            return b""
+
+        async with self._read_lock:
+            if exactly:
+                if n < 0:
+                    raise ValueError(
+                        "You MUST sepcify the length of the data "
+                        "if exactly is True.")
+
+                while self.buflen() < n:
+                    if self._finished:
+                        if self.buflen() > 0:
+                            partial = bytes(self._buf)
+                            self._buf.clear()  # type: ignore
+
+                            raise asyncio.IncompleteReadError(
+                                partial, expected=n) from self._exc
+
+                        else:
+                            raise exceptions.HttpStreamFinishedError \
+                                from self._exc
+
+                    await self._wait_for_data()
+
+            elif n < 0:
+                while not self._finished:
+                    if self._buf_is_full():
+                        raise asyncio.LimitOverrunError(
+                            "The buffer is full "
+                            "before the stream reaches the end.",
+                            self.buflen())
+
+                    await self._wait_for_data()
+
+            elif self.buflen() == 0:
+                if self._finished:
+                    raise exceptions.HttpStreamFinishedError from self._exc
+
+                await self._wait_for_data()
+
+            if self.finished():
+                raise exceptions.HttpStreamFinishedError from self._exc
+
+            if n < 0 or self.buflen() <= n:
+                data = bytes(self._buf)
+                self._buf.clear()  # type: ignore
+
+                return data
+
+            data = bytes(self._buf[0:n])
+            del self._buf[0:n]
+
+            return data
 
     async def read_until(
         self, separator: bytes=b"\n",
@@ -74,15 +171,48 @@ class BaseHttpStreamReader(abc.ABC):
         """
         Read until the separator has been found.
 
-        When limit(if any) has been reached, and the separator is not found,
+        When buffer limit has been reached, and the separator is not found,
         this method will raise an `asyncio.LimitOverrunError`.
         Similarly, if the eof reached before found the separator it will raise
         an `asyncio.IncompleteReadError`.
 
         When finished() is True, this method will raise a
-        :class:`exceptions.StreamEOFError`.
+        :class:`exceptions.HttpStreamFinishedError`.
         """
-        raise NotImplementedError
+        async with self._read_lock:
+            while True:
+                separator_pos = self._buf.find(separator)
+
+                if separator_pos == -1:
+                    if self._finished:
+                        if self.buflen() > 0:
+                            partial = bytes(self._buf)
+                            self._buf.clear()  # type: ignore
+
+                            raise asyncio.IncompleteReadError(
+                                partial, expected=None) from self._exc
+
+                        else:
+                            raise exceptions.HttpStreamFinishedError \
+                                from self._exc
+
+                    if self._buf_is_full():
+                        raise asyncio.LimitOverrunError(
+                            "The buffer limit has been reached "
+                            "before a separator can be found.", self.buflen())
+
+                    else:
+                        await self._wait_for_data()
+
+                        continue
+
+                if keep_separator:
+                    separator_pos += len(separator)
+
+                data = bytes(self._buf[0:separator_pos])
+                del self._buf[0:separator_pos]
+
+                return data
 
     def busy(self) -> bool:
         """
@@ -110,7 +240,7 @@ class BaseHttpStreamWriter(abc.ABC):
 
         self._protocol = self._impl._protocol
 
-        self._buffer = bytearray()
+        self._buf = bytearray()
 
         self._finished = False
 
@@ -120,14 +250,15 @@ class BaseHttpStreamWriter(abc.ABC):
         """
         Return the length of the internal buffer.
         """
-        return len(self._buffer)
+        return len(self._buf)
 
     def write(self, data: bytes) -> None:
         """
         Write the data.
         """
         assert not self._finished, "Write after finished."
-        self._buffer += data
+
+        self._buf += data
 
     async def flush(self) -> None:
         """
@@ -141,8 +272,8 @@ class BaseHttpStreamWriter(abc.ABC):
             if self.buflen() == 0:
                 return
 
-            data = bytes(self._buffer)
-            self._buffer.clear()  # type: ignore
+            data = bytes(self._buf)
+            self._buf.clear()  # type: ignore
 
             await self._impl.flush_data(self, data)
 
@@ -159,8 +290,8 @@ class BaseHttpStreamWriter(abc.ABC):
             if self.buflen() == 0:
                 return
 
-            data = bytes(self._buffer)
-            self._buffer.clear()  # type: ignore
+            data = bytes(self._buf)
+            self._buf.clear()  # type: ignore
 
             await self._impl.flush_data(self, data, last_chunk=True)
 
@@ -185,20 +316,34 @@ class HttpRequestReader(BaseHttpStreamReader):
             req_initial: initials.HttpRequestInitial) -> None:
         super().__init__(impl)
 
-        self._req_initial = req_initial
+        self._initial = req_initial
+
+        self._writer: Optional["HttpResponseWriter"] = None
+
+    def _resume_reading(self) -> None:
+        assert isinstance(self._impl, impls.BaseHttpServerImpl)
+
+        self._impl.resume_reading(self)
 
     @property
     def initial(self) -> initials.HttpRequestInitial:
-        return self._req_initial
+        return self._initial
 
     @property
-    def res_writer(self) -> "HttpResponseWriter":
-        raise NotImplementedError
+    def writer(self) -> "HttpResponseWriter":
+        if self._writer is None:
+            raise AttributeError("The writer is not ready.")
+
+        return self._writer
 
     async def write_response(
         self, res_initial: initials.HttpResponseInitial) -> \
             "HttpResponseWriter":
-        raise NotImplementedError
+        assert isinstance(self._impl, impls.BaseHttpServerImpl)
+
+        self._writer = await self._impl.write_response(self, res_initial)
+
+        return self._writer
 
     async def abort(self) -> None:
         assert isinstance(self._impl, impls.BaseHttpServerImpl)
@@ -212,18 +357,27 @@ class HttpRequestWriter(BaseHttpStreamWriter):
             req_initial: initials.HttpRequestInitial) -> None:
         super().__init__(impl)
 
-        self._req_initial = req_initial
+        self._initial = req_initial
+
+        self._reader: Optional["HttpResponseReader"] = None
 
     @property
     def initial(self) -> initials.HttpRequestInitial:
-        return self._req_initial
+        return self._initial
 
     @property
-    def res_reader(self) -> "HttpResponseReader":
-        raise NotImplementedError
+    def reader(self) -> "HttpResponseReader":
+        if self._reader is None:
+            raise AttributeError("The reader is not ready.")
+
+        return self._reader
 
     async def read_response(self) -> "HttpResponseReader":
-        raise NotImplementedError
+        assert isinstance(self._impl, impls.BaseHttpClientImpl)
+
+        self._reader = await self._impl.read_response(self)
+
+        return self._reader
 
     async def abort(self) -> None:
         assert isinstance(self._impl, impls.BaseHttpClientImpl)
@@ -238,21 +392,26 @@ class HttpResponseReader(BaseHttpStreamReader):
             req_writer: HttpRequestWriter) -> None:
         super().__init__(impl)
 
-        self._res_initial = res_initial
-        self._req_writer = req_writer
+        self._initial = res_initial
+        self._writer = req_writer
+
+    def _resume_reading(self) -> None:
+        assert isinstance(self._impl, impls.BaseHttpClientImpl)
+
+        self._impl.resume_reading(self._writer)
 
     @property
     def initial(self) -> initials.HttpResponseInitial:
-        return self._res_initial
+        return self._initial
 
     @property
-    def req_writer(self) -> HttpRequestWriter:
-        return self._req_writer
+    def writer(self) -> HttpRequestWriter:
+        return self._writer
 
     async def abort(self) -> None:
         assert isinstance(self._impl, impls.BaseHttpClientImpl)
 
-        await self._impl.abort_request(self.req_writer)
+        await self._impl.abort_request(self._writer)
 
 
 class HttpResponseWriter(BaseHttpStreamWriter):
@@ -262,23 +421,23 @@ class HttpResponseWriter(BaseHttpStreamWriter):
             req_reader: Optional[HttpRequestReader]) -> None:
         super().__init__(impl)
 
-        self._res_initial = res_initial
-        self._req_reader = req_reader
+        self._initial = res_initial
+        self._reader = req_reader
 
     @property
     def initial(self) -> initials.HttpResponseInitial:
-        return self._res_initial
+        return self._initial
 
     @property
-    def req_reader(self) -> HttpRequestReader:
-        if self._req_reader is None:
+    def reader(self) -> HttpRequestReader:
+        if self._reader is None:
             raise AttributeError(
                 "HttpRequestReader is unavailable due to an "
                 "Error during reading.")
 
-        return self._req_reader
+        return self._reader
 
     async def abort(self) -> None:
         assert isinstance(self._impl, impls.BaseHttpServerImpl)
 
-        await self._impl.abort_request(self.req_reader)
+        await self._impl.abort_request(self._reader)

@@ -125,11 +125,14 @@ class BaseHttpImpl(abc.ABC):
 
 
 class BaseHttpServerImpl(BaseHttpImpl):
-    @abc.abstractmethod  # Server-side Only.
+    def resume_reading(self, req_reader: "streams.HttpRequestReader") -> None:
+        pass
+
+    @abc.abstractmethod
     async def read_request(self) -> "streams.HttpRequestReader":
         raise NotImplementedError
 
-    @abc.abstractmethod  # Server-side Only.
+    @abc.abstractmethod
     async def write_response(
         self, req_reader: Optional["streams.HttpRequestReader"],
         res_initial: initials.HttpResponseInitial) -> \
@@ -143,13 +146,16 @@ class BaseHttpServerImpl(BaseHttpImpl):
 
 
 class BaseHttpClientImpl(BaseHttpImpl):
-    @abc.abstractmethod  # Client-side Only.
+    def resume_reading(self, req_writer: "streams.HttpRequestWriter") -> None:
+        pass
+
+    @abc.abstractmethod
     async def read_response(
         self, req_writer: "streams.HttpRequestWriter") -> \
             "streams.HttpResponseReader":
         raise NotImplementedError
 
-    @abc.abstractmethod  # Client-side Only.
+    @abc.abstractmethod
     async def write_request(
         self, req_initial: initials.HttpRequestInitial) -> \
             "streams.HttpRequestWriter":
@@ -226,11 +232,6 @@ class BaseH1Impl(BaseHttpImpl):
         self._try_raise_read_exc()
         self._try_raise_write_exc()
 
-    def resume_reading(self) -> None:
-        if self._read_state == _ReadState.Paused:
-            self._try_raise_read_exc()
-            self._set_read_state(_ReadState.Reading)
-
     def connection_lost(self, exc: Optional[BaseException]) -> None:
         super().connection_lost(exc)
 
@@ -261,6 +262,14 @@ class H1ServerImpl(BaseH1Impl, BaseHttpServerImpl):
             self._reader._append_exc(exc)
 
         super()._set_read_exc(exc)
+
+    def resume_reading(self, req_reader: "streams.HttpRequestReader") -> None:
+        if self._reader is not req_reader:
+            raise ValueError("Reader Mismatch.")
+
+        if self._read_state == _ReadState.Paused:
+            self._try_raise_read_exc()
+            self._set_read_state(_ReadState.Reading)
 
     async def read_request(self) -> "streams.HttpRequestReader":
         async with self._init_lock:
@@ -411,6 +420,14 @@ class H1ClientImpl(BaseH1Impl, BaseHttpClientImpl):
             self._reader._append_exc(exc)
 
         super()._set_read_exc(exc)
+
+    def resume_reading(self, req_writer: "streams.HttpRequestWriter") -> None:
+        if self._writer is not req_writer:
+            raise ValueError("Writer Mismatch.")
+
+        if self._read_state == _ReadState.Paused:
+            self._try_raise_read_exc()
+            self._set_read_state(_ReadState.Reading)
 
     async def write_request(
         self, req_initial: initials.HttpRequestInitial) -> \
