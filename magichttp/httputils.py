@@ -15,7 +15,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from typing import Mapping, Optional, Union, Sequence, Tuple, List
+from typing import Mapping, Optional, Union, Tuple, List, Iterable
 
 import magicdict
 import collections.abc
@@ -26,7 +26,7 @@ __all__ = ["parse_semicolon_header", "compose_semicolon_header"]
 def parse_semicolon_header(
     header_bytes: bytes) -> magicdict.FrozenTolerantMagicDict[
         bytes, Optional[bytes]]:
-    header_parts: List[Typle[bytes, Optional[bytes]]] = []
+    header_parts: List[Tuple[bytes, Optional[bytes]]] = []
 
     for part in header_bytes.split(b";"):
         part = part.strip()
@@ -67,11 +67,11 @@ def compose_semicolon_header(
             header_part_lst.append(b"%s=%s" % (name.strip(), value.strip()))
 
     if hasattr(header_parts, "items"):
-        for name, value in header_parts.items():
+        for name, value in header_parts.items():  # type: ignore
             add_one_part(name, value)
 
     else:
         for name, value in header_parts:
-            add_one_part(name, value)
+            add_one_part(name, value)  # type: ignore
 
     return b"; ".join(header_part_lst)
