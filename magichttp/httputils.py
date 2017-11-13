@@ -15,46 +15,63 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from typing import Mapping, Optional
+from typing import Mapping, Optional, Union, Sequence, Tuple, List
 
 import magicdict
+import collections.abc
 
 __all__ = ["parse_semicolon_header", "compose_semicolon_header"]
 
 
 def parse_semicolon_header(
-        value: bytes) -> magicdict.TolerantMagicDict[bytes, Optional[bytes]]:
-    header_dict = magicdict.TolerantMagicDict()
-    for part in value.split(b";"):
+    header_bytes: bytes) -> magicdict.FrozenTolerantMagicDict[
+        bytes, Optional[bytes]]:
+    header_parts: List[Typle[bytes, Optional[bytes]]] = []
+
+    for part in header_bytes.split(b";"):
         part = part.strip()
 
         if not part:
             continue
 
-        splitted = part.split(b"=", 1)
+        name, *maybe_value = part.split(b"=", 1)
 
-        part_name = splitted.pop(0).strip()
-        part_value = splitted.pop().strip() if splitted else None
+        name = name.strip()
 
-        if part_value and part_value.startswith(b'"') and \
-                part_value.endswith(b'"'):
-            part_value = part_value[1:-1]
+        if maybe_value:
+            value = maybe_value[0].strip()
+            if value.startswith(b'"') and value.endswith(b'"'):
+                value = value[1:-1]
 
-        header_dict.add(part_name, part_value)
+            header_parts.append((name, value))
 
-    return header_dict
+        else:
+            header_parts.append((name, None))
+
+        header_parts.append((name, value))
+
+    return magicdict.FrozenTolerantMagicDict(header_parts)
 
 
 def compose_semicolon_header(
-        header_dict: Mapping[bytes, Optional[bytes]]) -> bytes:
-    header_list = []
+    header_parts: Union[
+        Mapping[bytes, Optional[bytes]],
+        Iterable[Tuple[bytes, Optional[bytes]]]]) -> bytes:
+    header_part_lst = []
 
-    for name, value in header_dict.items():
-        part = name.strip()
+    def add_one_part(name: bytes, value: Optional[bytes]) -> None:
+        if value is None:
+            header_part_lst.append(name.strip())
 
-        if value is not None:
-            part += b"=" + value.strip()
+        else:
+            header_part_lst.append(b"%s=%s" % (name.strip(), value.strip()))
 
-        header_list.append(part)
+    if hasattr(header_parts, "items"):
+        for name, value in header_parts.items():
+            add_one_part(name, value)
 
-    return b"; ".join(header_list)
+    else:
+        for name, value in header_parts:
+            add_one_part(name, value)
+
+    return b"; ".join(header_part_lst)
