@@ -82,8 +82,6 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
     def __init__(self) -> None:
         super().__init__()
 
-        self._loop = asyncio.get_event_loop()
-
         self._drained_event = asyncio.Event()
         self._drained_event.set()
 
@@ -174,8 +172,7 @@ class HttpServerProtocol(
         try:
             return await self._impl.read_request()
 
-        except (
-                exceptions.HttpConnectionClosingError,
+        except (exceptions.HttpConnectionClosingError,
                 exceptions.HttpConnectionClosedError) as e:
             raise StopAsyncIteration from e
 

@@ -44,8 +44,6 @@ class BaseHttpImpl(abc.ABC):
         self._protocol = protocol
         self._transport = transport
 
-        self._loop = asyncio.get_event_loop()
-
         self._read_state = _ReadState.Reading
         self._read_state_changed: "asyncio.Future[_ReadState]" = \
             asyncio.Future()
