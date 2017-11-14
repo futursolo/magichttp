@@ -25,6 +25,19 @@ if typing.TYPE_CHECKING:
     from . import initials
     from . import readers
 
+__all__ = [
+    "HttpStreamWriteAfterFinishedError",
+    "HttpStreamWriteAbortedError",
+
+    "BaseHttpStreamWriterDelegate",
+    "BaseHttpStreamWriter",
+
+    "HttpRequestWriterDelegate",
+    "HttpRequestWriter",
+
+    "HttpResponseWriterDelegate",
+    "HttpResponseWriter"]
+
 
 class HttpStreamWriteAfterFinishedError(EOFError):
     """
