@@ -138,14 +138,11 @@ class H1RequestComposer(BaseH1Composer):
     def compose_request(
         self, method: constants.HttpRequestMethod, *,
         uri: bytes, authority: Optional[bytes],
-        version: Optional[constants.HttpVersion],
+        version: constants.HttpVersion,
         scheme: Optional[bytes],
         headers: Optional[_HeaderType]
             ) -> Tuple[initials.HttpRequestInitial, bytes]:
         assert self._using_chunked_body is None, "Composers are not reusable."
-
-        if version is None:
-            version = constants.HttpVersion.V1_1
 
         refined_headers: MutableMapping[bytes, bytes]
         if headers:

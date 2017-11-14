@@ -15,7 +15,8 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from typing import AsyncIterator, Optional, Any
+from typing import AsyncIterator, Optional, Any, Union, Mapping, Iterable, \
+    Tuple
 
 from . import streams
 from . import initials
@@ -24,8 +25,54 @@ from . import exceptions
 
 import asyncio
 import abc
+import typing
+
+if typing.TYPE_CHECKING:
+    from . import constants
+    from . import readers
+    from . import writers
 
 __all__ = ["HttpServerProtocol", "HttpClientProtocol"]
+
+_HeaderType = Union[
+    Mapping[bytes, bytes],
+    Iterable[Tuple[bytes, bytes]]]
+
+
+class BaseHttpProtocolDelegate(abc.ABC):
+    @abc.abstractmethod
+    def __init__(
+        self, protocol: "BaseHttpProtocol",
+            transport: asyncio.Transport) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def data_received(self, data: bytes) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def eof_received(self) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def finished(self) -> bool:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def wait_finished(self) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def close(self) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def abort(self) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def connection_lost(self, exc: Optional[BaseException]) -> None:
+        raise NotImplementedError
 
 
 class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
@@ -98,6 +145,18 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
             self._impl.connection_lost(exc)
 
 
+class HttpServerProtocolDelegate(BaseHttpProtocolDelegate):
+    @abc.abstractmethod
+    def __init__(
+        self, protocol: "HttpServerProtocol",
+            transport: asyncio.Transport) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def read_request(self) -> "readers.HttpRequestReader":
+        raise NotImplementedError
+
+
 class HttpServerProtocol(
         BaseHttpProtocol, AsyncIterator["streams.HttpRequestReader"]):
     def connection_made(  # type: ignore
@@ -119,6 +178,23 @@ class HttpServerProtocol(
                 exceptions.HttpConnectionClosingError,
                 exceptions.HttpConnectionClosedError) as e:
             raise StopAsyncIteration from e
+
+
+class HttpClientProtocolDelegate(BaseHttpProtocolDelegate):
+    @abc.abstractmethod
+    def __init__(
+        self, protocol: "HttpServerProtocol",
+            transport: asyncio.Transport) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def write_request(
+        self, method: "constants.HttpRequestMethod", *,
+        uri: bytes, authority: Optional[bytes],
+        version: "constants.HttpVersion",
+        scheme: Optional[bytes],
+            headers: Optional[_HeaderType]) -> "writers.HttpRequestWriter":
+        raise NotImplementedError
 
 
 class HttpClientProtocol(BaseHttpProtocol):
