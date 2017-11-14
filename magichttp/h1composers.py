@@ -24,7 +24,10 @@ from . import _version
 import abc
 import magicdict
 import collections
-import http
+import typing
+
+if typing.TYPE_CHECKING:
+    import http
 
 __all__ = [
     "IncomposableHttpInitial",
@@ -102,7 +105,7 @@ class BaseH1Composer(abc.ABC):
             self, data: bytes, finished: bool=False) -> Optional[bytes]:
         assert not self._finished, "Composers are not reusable."
         assert self._using_chunked_body is not None, \
-            "You should write the initial first."
+            "You should compose the initial first."
 
         if self._using_chunked_body:
             if len(data) > 0:
@@ -186,7 +189,7 @@ class H1RequestComposer(BaseH1Composer):
 
 class H1ResponseComposer(BaseH1Composer):
     def compose_response(
-        self, status_code: http.HTTPStatus, *,
+        self, status_code: "http.HTTPStatus", *,
         version: Optional[initials.HttpVersion],
         headers: Optional[_HeaderType],
         req_initial: initials.HttpRequestInitial
@@ -253,6 +256,6 @@ class H1ResponseComposer(BaseH1Composer):
 
         return (refined_initial, self._compose_initial_bytes(
                 version.value,
-                str(status_code).encode(),
-                http.HTTPStatus(status_code).phrase.encode(),
+                str(status_code.value).encode(),
+                status_code.phrase.encode(),
                 headers=refined_initial.headers))

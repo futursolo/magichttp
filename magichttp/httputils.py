@@ -57,7 +57,7 @@ def compose_semicolon_header(
     header_parts: Union[
         Mapping[bytes, Optional[bytes]],
         Iterable[Tuple[bytes, Optional[bytes]]]]) -> bytes:
-    header_part_lst = []
+    header_part_lst: List[bytes] = []
 
     def add_one_part(name: bytes, value: Optional[bytes]) -> None:
         if value is None:
