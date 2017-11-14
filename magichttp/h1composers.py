@@ -52,6 +52,8 @@ class HttpRequestInitialRequiredForComposing(ValueError):
 
 
 class BaseH1Composer(abc.ABC):
+    __slots__ = ("_using_https", "_using_chunked_body", "_finished")
+
     def __init__(self, using_https: bool=False) -> None:
         self._using_https = using_https
 
@@ -184,9 +186,9 @@ class H1RequestComposer(BaseH1Composer):
 
 class H1ResponseComposer(BaseH1Composer):
     def compose_response(
-        self, status_code: int, *,
-        version: Optional[initials.HttpVersion]=None,
-        headers: Optional[_HeaderType]=None,
+        self, status_code: http.HTTPStatus, *,
+        version: Optional[initials.HttpVersion],
+        headers: Optional[_HeaderType],
         req_initial: initials.HttpRequestInitial
             ) -> Tuple[initials.HttpResponseInitial, bytes]:
         assert self._using_chunked_body is None, "Composers are not reusable."
@@ -218,21 +220,18 @@ class H1ResponseComposer(BaseH1Composer):
             refined_headers[b"connection"] = b"Close"
 
         elif b"connection" not in refined_headers.keys():
-            if version == initials.HttpVersion.V1_1:
-                if req_initial is not None and \
-                        b"connection" in req_initial.headers.keys():
-                    if req_initial.headers[
-                            b"connection"].lower() == b"keep-alive":
-                        refined_headers[b"connection"] = b"Keep-Alive"
+            if version != initials.HttpVersion.V1_1:
+                refined_headers[b"connection"] = b"Close"
 
-                    else:
-                        refined_headers[b"connection"] = b"Close"
+            elif req_initial is None or \
+                    b"connection" not in req_initial.headers.keys():
+                refined_headers[b"connection"] = b"Keep-Alive"
 
-                else:
-                    refined_headers[b"connection"] = b"Keep-Alive"
+            elif req_initial.headers[b"connection"].lower() != b"keep-alive":
+                refined_headers[b"connection"] = b"Close"
 
             else:
-                refined_headers[b"connection"] = b"Close"
+                refined_headers[b"connection"] = b"Keep-Alive"
 
         if b"transfer-encoding" in refined_headers.keys():
             self._decide_body_by_transfer_encoding(

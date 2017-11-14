@@ -21,6 +21,7 @@ import abc
 import asyncio
 import typing
 import contextlib
+import http
 
 if typing.TYPE_CHECKING:
     from . import initials
@@ -324,9 +325,9 @@ class BaseHttpStreamReader(abc.ABC):
 class HttpRequestReaderDelegate(BaseHttpStreamReaderDelegate):
     @abc.abstractmethod
     def write_response(
-        self, status_code: int, *,
+        self, status_code: http.HTTPStatus, *,
         version: Optional["initials.HttpVersion"],
-        headers: Optional[_HeaderType]
+        headers: _HeaderType
             ) -> "writers.HttpResponseWriter":
         raise NotImplementedError
 
@@ -354,12 +355,12 @@ class HttpRequestReader(BaseHttpStreamReader):
         return self._writer
 
     def write_response(
-        self, status_code: int, *,
+        self, status_code: Union[int, http.HTTPStatus], *,
         version: Optional["initials.HttpVersion"]=None,
         headers: Optional[_HeaderType]=None
             ) -> "writers.HttpResponseWriter":
         self._writer = self.__delegate.write_response(
-            status_code,
+            http.HTTPStatus(status_code),
             version=version,
             headers=headers)
 

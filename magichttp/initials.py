@@ -20,6 +20,7 @@ from typing import Optional, Union, Iterable, Tuple, Mapping, Any
 import magicdict
 import enum
 import collections
+import http
 
 __all__ = [
     "HttpVersion", "HttpRequestMethod",
@@ -64,7 +65,7 @@ class HttpRequestInitial:
     __slots__ = (
         "_method", "_version", "_uri", "_headers", "_authority", "_scheme")
 
-    def __init__(
+    def __init__(  # TODO: Remove Optionals.
         self, method: HttpRequestMethod, *,
         uri: bytes, authority: Optional[bytes]=None,
         version: Optional[HttpVersion]=None,
@@ -135,16 +136,16 @@ class HttpResponseInitial:
     __slots__ = ("_status_code", "_version", "_headers")
 
     def __init__(
-        self, status_code: int, *,
-        version: Optional[HttpVersion]=None,
+        self, status_code: Union[int, http.HTTPStatus], *,  # TODO: Remove int.
+        version: Optional[HttpVersion]=None,  # TODO: Remove Optionals.
             headers: Optional[_HeaderType]=None) -> None:
-        self._status_code = status_code
+        self._status_code = http.HTTPStatus(status_code)
         self._version = version
 
         self._headers = _refine_headers(headers)
 
     @property
-    def status_code(self) -> int:
+    def status_code(self) -> http.HTTPStatus:
         return self._status_code
 
     @property
