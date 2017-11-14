@@ -28,10 +28,13 @@ def modify(project_folder: str) -> None:
     if tag:
         dev_no = "None"
 
+        tag = tag.lower()
+        if tag.startswith("v"):
+            tag = tag[1:]
+
     else:
         dev_no = str(os.environ.get("TRAVIS_BUILD_NUMBER", "0"))
-
-    tag = str(tag or "0.0.0")
+        tag = "0.0.0"
 
     with open(f"{project_folder}/_version.py", "r+") as f:
         f_str = f.read()
