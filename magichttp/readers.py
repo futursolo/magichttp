@@ -17,6 +17,8 @@
 
 from typing import Union, Mapping, Iterable, Tuple, Optional
 
+from . import constants
+
 import abc
 import asyncio
 import typing
@@ -26,7 +28,6 @@ import http
 if typing.TYPE_CHECKING:
     from . import initials
     from . import writers
-    from . import constants
 
 __all__ = [
     "HttpStreamReadFinishedError",
@@ -327,7 +328,7 @@ class HttpRequestReaderDelegate(BaseHttpStreamReaderDelegate):
     @abc.abstractmethod
     def write_response(
         self, status_code: http.HTTPStatus, *,
-        version: Optional["constants.HttpVersion"],
+        version: constants.HttpVersion,
         headers: Optional[_HeaderType]
             ) -> "writers.HttpResponseWriter":
         raise NotImplementedError
@@ -357,12 +358,12 @@ class HttpRequestReader(BaseHttpStreamReader):
 
     def write_response(
         self, status_code: Union[int, http.HTTPStatus], *,
-        version: Optional["constants.HttpVersion"]=None,
+        version: Optional[constants.HttpVersion]=None,
         headers: Optional[_HeaderType]=None
             ) -> "writers.HttpResponseWriter":
         self._writer = self.__delegate.write_response(
             http.HTTPStatus(status_code),
-            version=version,
+            version=version or constants.HttpVersion.V1_1,
             headers=headers)
 
         return self._writer

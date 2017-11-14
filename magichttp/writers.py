@@ -56,15 +56,15 @@ class HttpStreamWriteAbortedError(Exception):
 
 class BaseHttpStreamWriterDelegate(abc.ABC):
     @abc.abstractmethod
-    def write(self, data: bytes) -> None:
+    def write_data(self, data: bytes) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def flush(self) -> None:
+    async def flush_buf(self) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def finish(self) -> None:
+    def finish_writing(self) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -110,7 +110,7 @@ class BaseHttpStreamWriter(abc.ABC):
             self._buf.clear()  # type: ignore
 
             try:
-                self._delegate.write(data)
+                self._delegate.write_data(data)
 
             except Exception as e:
                 self._finished.set()
@@ -149,7 +149,7 @@ class BaseHttpStreamWriter(abc.ABC):
             self._empty_buf()
 
             try:
-                await self._delegate.flush()
+                await self._delegate.flush_buf()
 
             except asyncio.CancelledError:
                 raise
@@ -175,7 +175,7 @@ class BaseHttpStreamWriter(abc.ABC):
 
         try:
             self._empty_buf()
-            self._delegate.finish()
+            self._delegate.finish_writing()
 
         except Exception as e:
             if self._exc is None:

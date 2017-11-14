@@ -183,7 +183,7 @@ class HttpServerProtocol(
 class HttpClientProtocolDelegate(BaseHttpProtocolDelegate):
     @abc.abstractmethod
     def __init__(
-        self, protocol: "HttpServerProtocol",
+        self, protocol: "HttpClientProtocol",
             transport: asyncio.Transport) -> None:
         raise NotImplementedError
 
