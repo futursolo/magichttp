@@ -20,6 +20,7 @@ from typing import Optional, Tuple, Mapping
 from . import initials
 from . import exceptions
 from . import httputils
+from . import constants
 from . import _version
 
 import http
@@ -80,7 +81,7 @@ class H1Composer:
         assert self._using_chunked_body is None
 
         if req_initial.version is None:
-            version = initials.HttpVersion.V1_1
+            version = constants.HttpVersion.V1_1
 
         else:
             version = req_initial.version
@@ -94,7 +95,7 @@ class H1Composer:
         refined_req_headers.setdefault(b"accept", b"*/*")
 
         if b"connection" not in req_initial.headers.keys():
-            if version == initials.HttpVersion.V1_1:
+            if version == constants.HttpVersion.V1_1:
                 refined_req_headers[b"connection"] = b"Keep-Alive"
 
             else:
@@ -141,7 +142,7 @@ class H1Composer:
                         "a status code less than 400.")
 
                 else:
-                    version = initials.HttpVersion.V1_1
+                    version = constants.HttpVersion.V1_1
 
             else:
                 assert req_initial.version is not None
@@ -160,7 +161,7 @@ class H1Composer:
             refined_res_headers[b"connection"] = b"Close"
 
         elif b"connection" not in res_initial.headers.keys():
-            if version == initials.HttpVersion.V1_1:
+            if version == constants.HttpVersion.V1_1:
                 if req_initial is not None and \
                         b"connection" in req_initial.headers.keys():
                     if req_initial.headers[
@@ -183,7 +184,7 @@ class H1Composer:
         elif b"content-length" in res_initial.headers.keys():
             self._using_chunked_body = False
 
-        elif version == initials.HttpVersion.V1_1:
+        elif version == constants.HttpVersion.V1_1:
             refined_res_headers[b"transfer-encoding"] = b"Chunked"
             self._using_chunked_body = True
 

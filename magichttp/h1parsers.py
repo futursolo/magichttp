@@ -19,6 +19,7 @@ from typing import Optional, List, Tuple
 
 from . import initials
 from . import httputils
+from . import constants
 
 import abc
 import http
@@ -306,8 +307,8 @@ class H1RequestParser(BaseH1Parser):
 
             method_buf, path, version_buf = first_line.split(b" ")
 
-            method = initials.HttpRequestMethod(method_buf.upper().strip())
-            version = initials.HttpVersion(version_buf.upper().strip())
+            method = constants.HttpRequestMethod(method_buf.upper().strip())
+            version = constants.HttpVersion(version_buf.upper().strip())
 
         except (IndexError, ValueError) as e:
             raise UnparsableHttpInitial(
@@ -339,7 +340,7 @@ class H1ResponseParser(BaseH1Parser):
             return
 
         # HEAD Requests, and 204/304 Responses have no body.
-        if req_initial.method == initials.HttpRequestMethod.Head:
+        if req_initial.method == constants.HttpRequestMethod.Head:
             self._body_len_left = 0
 
             return
@@ -384,7 +385,7 @@ class H1ResponseParser(BaseH1Parser):
                 raise ValueError("Status Code MUST be decimal.")
 
             status_code = http.HTTPStatus(int(status_code_str))
-            version = initials.HttpVersion(version_buf)
+            version = constants.HttpVersion(version_buf)
 
         except (IndexError, ValueError) as e:
             raise UnparsableHttpInitial(

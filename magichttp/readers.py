@@ -26,6 +26,7 @@ import http
 if typing.TYPE_CHECKING:
     from . import initials
     from . import writers
+    from . import constants
 
 __all__ = [
     "HttpStreamReadFinishedError",
@@ -326,7 +327,7 @@ class HttpRequestReaderDelegate(BaseHttpStreamReaderDelegate):
     @abc.abstractmethod
     def write_response(
         self, status_code: http.HTTPStatus, *,
-        version: Optional["initials.HttpVersion"],
+        version: Optional["constants.HttpVersion"],
         headers: Optional[_HeaderType]
             ) -> "writers.HttpResponseWriter":
         raise NotImplementedError
@@ -356,7 +357,7 @@ class HttpRequestReader(BaseHttpStreamReader):
 
     def write_response(
         self, status_code: Union[int, http.HTTPStatus], *,
-        version: Optional["initials.HttpVersion"]=None,
+        version: Optional["constants.HttpVersion"]=None,
         headers: Optional[_HeaderType]=None
             ) -> "writers.HttpResponseWriter":
         self._writer = self.__delegate.write_response(

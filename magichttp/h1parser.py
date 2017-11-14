@@ -20,6 +20,7 @@ from typing import Optional, List
 from . import exceptions
 from . import initials
 from . import httputils
+from . import constants
 
 import magicdict
 
@@ -158,7 +159,7 @@ class H1Parser:
             return
 
         # HEAD Requests, and 204/304 Responses have no body.
-        if req_initial.method == initials.HttpRequestMethod.Head:
+        if req_initial.method == constants.HttpRequestMethod.Head:
             self._body_len_left = 0
 
             return
@@ -196,8 +197,8 @@ class H1Parser:
 
             method_buf, path, version_buf = first_line.split(b" ")
 
-            method = initials.HttpRequestMethod(method_buf.strip())
-            version = initials.HttpVersion(version_buf.strip())
+            method = constants.HttpRequestMethod(method_buf.strip())
+            version = constants.HttpVersion(version_buf.strip())
 
         except (IndexError, ValueError) as e:
             raise exceptions.MalformedHttpInitial(
@@ -238,7 +239,7 @@ class H1Parser:
                 raise ValueError("Status Code MUST be decimal.")
 
             status_code = int(status_code_str)
-            version = initials.HttpVersion(version_buf)
+            version = constants.HttpVersion(version_buf)
 
         except (IndexError, ValueError) as e:
             raise exceptions.MalformedHttpInitial(

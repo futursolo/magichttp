@@ -19,6 +19,7 @@ from typing import Optional, Mapping, MutableMapping, Union, Iterable, Tuple
 
 from . import httputils
 from . import initials
+from . import constants
 from . import _version
 
 import abc
@@ -135,16 +136,16 @@ class BaseH1Composer(abc.ABC):
 
 class H1RequestComposer(BaseH1Composer):
     def compose_request(
-        self, method: initials.HttpRequestMethod, *,
+        self, method: constants.HttpRequestMethod, *,
         uri: bytes, authority: Optional[bytes],
-        version: Optional[initials.HttpVersion],
+        version: Optional[constants.HttpVersion],
         scheme: Optional[bytes],
         headers: Optional[_HeaderType]
             ) -> Tuple[initials.HttpRequestInitial, bytes]:
         assert self._using_chunked_body is None, "Composers are not reusable."
 
         if version is None:
-            version = initials.HttpVersion.V1_1
+            version = constants.HttpVersion.V1_1
 
         refined_headers: MutableMapping[bytes, bytes]
         if headers:
@@ -157,7 +158,7 @@ class H1RequestComposer(BaseH1Composer):
         refined_headers.setdefault(b"accept", b"*/*")
 
         if b"connection" not in refined_headers.keys():
-            if version == initials.HttpVersion.V1_1:
+            if version == constants.HttpVersion.V1_1:
                 refined_headers[b"connection"] = b"Keep-Alive"
 
             else:
@@ -190,7 +191,7 @@ class H1RequestComposer(BaseH1Composer):
 class H1ResponseComposer(BaseH1Composer):
     def compose_response(
         self, status_code: "http.HTTPStatus", *,
-        version: Optional[initials.HttpVersion],
+        version: Optional[constants.HttpVersion],
         headers: Optional[_HeaderType],
         req_initial: initials.HttpRequestInitial
             ) -> Tuple[initials.HttpResponseInitial, bytes]:
@@ -204,7 +205,7 @@ class H1ResponseComposer(BaseH1Composer):
                         "a status code less than 400.")
 
                 else:
-                    version = initials.HttpVersion.V1_1
+                    version = constants.HttpVersion.V1_1
 
             else:
                 assert req_initial.version is not None
@@ -223,7 +224,7 @@ class H1ResponseComposer(BaseH1Composer):
             refined_headers[b"connection"] = b"Close"
 
         elif b"connection" not in refined_headers.keys():
-            if version != initials.HttpVersion.V1_1:
+            if version != constants.HttpVersion.V1_1:
                 refined_headers[b"connection"] = b"Close"
 
             elif req_initial is None or \
@@ -243,7 +244,7 @@ class H1ResponseComposer(BaseH1Composer):
         elif b"content-length" in refined_headers.keys():
             self._using_chunked_body = False
 
-        elif version == initials.HttpVersion.V1_1:
+        elif version == constants.HttpVersion.V1_1:
             refined_headers[b"transfer-encoding"] = b"Chunked"
             self._using_chunked_body = True
 

@@ -21,31 +21,17 @@ import magicdict
 import enum
 import collections
 import http
+import typing
+
+if typing.TYPE_CHECKING:
+    from . import constants
 
 __all__ = [
-    "HttpVersion", "HttpRequestMethod",
     "HttpRequestInitial", "HttpResponseInitial"]
 
 _HeaderType = Union[
     Mapping[bytes, bytes],
     Iterable[Tuple[bytes, bytes]]]
-
-
-class HttpVersion(enum.Enum):
-    V1_0 = b"HTTP/1.0"
-    V1_1 = b"HTTP/1.1"
-
-
-class HttpRequestMethod(enum.Enum):
-    Get = b"GET"
-    Post = b"POST"
-    Put = b"PUT"
-    Delete = b"DELETE"
-    Head = b"HEAD"
-    Options = b"OPTIONS"
-    Connect = b"CONNECT"
-    Trace = b"TRACE"
-    Patch = b"PATCH"
 
 
 def _refine_headers(
@@ -66,9 +52,9 @@ class HttpRequestInitial:
         "_method", "_version", "_uri", "_headers", "_authority", "_scheme")
 
     def __init__(  # TODO: Remove Optionals.
-        self, method: HttpRequestMethod, *,
+        self, method: "constants.HttpRequestMethod", *,
         uri: bytes, authority: Optional[bytes]=None,
-        version: Optional[HttpVersion]=None,
+        version: Optional["constants.HttpVersion"]=None,
         scheme: Optional[bytes]=None,
             headers: Optional[_HeaderType]=None) -> None:
         self._method = method
@@ -81,11 +67,11 @@ class HttpRequestInitial:
         self._scheme = scheme
 
     @property
-    def method(self) -> HttpRequestMethod:
+    def method(self) -> "constants.HttpRequestMethod":
         return self._method
 
     @property
-    def version(self) -> Optional[HttpVersion]:
+    def version(self) -> Optional["constants.HttpVersion"]:
         return self._version
 
     @property
@@ -137,7 +123,8 @@ class HttpResponseInitial:
 
     def __init__(
         self, status_code: Union[int, http.HTTPStatus], *,  # TODO: Remove int.
-        version: Optional[HttpVersion]=None,  # TODO: Remove Optionals.
+        version: Optional["constants.HttpVersion"]=None,
+            # TODO: Remove Optionals.
             headers: Optional[_HeaderType]=None) -> None:
         self._status_code = http.HTTPStatus(status_code)
         self._version = version
@@ -149,7 +136,7 @@ class HttpResponseInitial:
         return self._status_code
 
     @property
-    def version(self) -> Optional[HttpVersion]:
+    def version(self) -> Optional["constants.HttpVersion"]:
         return self._version
 
     @property

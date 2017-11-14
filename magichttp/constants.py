@@ -15,26 +15,23 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from ._version import *
-from .exceptions import *
-from .h1composer import *
-from .h1parser import *
-from .httputils import *
-from .initials import *
-from .protocols import *
-from .streams import *
-from .constants import *
+import enum
 
-from . import _version
-from . import exceptions
-from . import h1composer
-from . import h1parser
-from . import httputils
-from . import initials
-from . import protocols
-from . import streams
-from . import constants
+__all__ = ["HttpVersion", "HttpRequestMethod"]
 
-__all__ = _version.__all__ + exceptions.__all__ + h1composer.__all__ + \
-    h1parser.__all__ + httputils.__all__ + initials.__all__ + \
-    protocols.__all__ + streams.__all__ + constants.__all__
+
+class HttpVersion(enum.Enum):
+    V1_0 = b"HTTP/1.0"
+    V1_1 = b"HTTP/1.1"
+
+
+class HttpRequestMethod(enum.Enum):
+    Get = b"GET"
+    Post = b"POST"
+    Put = b"PUT"
+    Delete = b"DELETE"
+    Head = b"HEAD"
+    Options = b"OPTIONS"
+    Connect = b"CONNECT"
+    Trace = b"TRACE"
+    Patch = b"PATCH"
