@@ -327,7 +327,7 @@ class HttpRequestReaderDelegate(BaseHttpStreamReaderDelegate):
     def write_response(
         self, status_code: http.HTTPStatus, *,
         version: Optional["initials.HttpVersion"],
-        headers: _HeaderType
+        headers: Optional[_HeaderType]
             ) -> "writers.HttpResponseWriter":
         raise NotImplementedError
 
