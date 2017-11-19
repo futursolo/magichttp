@@ -47,6 +47,13 @@ class HttpStreamWriteAfterFinishedError(EOFError):
     pass
 
 
+class HttpStreamWriteDuplicatedError(Exception):
+    """
+    Raised when the initial has been written twice.
+    """
+    pass
+
+
 class HttpStreamWriteAbortedError(Exception):
     """
     Raised when the stream is aborted before writing the end.
@@ -56,15 +63,11 @@ class HttpStreamWriteAbortedError(Exception):
 
 class BaseHttpStreamWriterDelegate(abc.ABC):
     @abc.abstractmethod
-    def write_data(self, data: bytes) -> None:
+    def write_data(self, data: bytes, finished: bool=False) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
     async def flush_buf(self) -> None:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def finish_writing(self) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -104,13 +107,13 @@ class BaseHttpStreamWriter(abc.ABC):
             self._max_buf_len_changed.set_result(None)
             self._max_buf_len_changed = asyncio.Future()
 
-    def _empty_buf(self) -> None:
+    def _empty_buf(self, finished: bool=False) -> None:
         if self.buf_len() >= 0:
             data = bytes(self._buf)
             self._buf.clear()  # type: ignore
 
             try:
-                self._delegate.write_data(data)
+                self._delegate.write_data(data, finished=finished)
 
             except Exception as e:
                 self._finished.set()
@@ -174,8 +177,7 @@ class BaseHttpStreamWriter(abc.ABC):
         self._finished.set()
 
         try:
-            self._empty_buf()
-            self._delegate.finish_writing()
+            self._empty_buf(finished=True)
 
         except Exception as e:
             if self._exc is None:

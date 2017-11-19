@@ -142,6 +142,8 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
         if self._impl is not None:
             self._impl.connection_lost(exc)
 
+        self._drained_event.set()
+
 
 class HttpServerProtocolDelegate(BaseHttpProtocolDelegate):
     @abc.abstractmethod

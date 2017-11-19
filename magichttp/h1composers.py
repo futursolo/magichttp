@@ -103,7 +103,7 @@ class BaseH1Composer(abc.ABC):
         return b"\r\n".join(buf)
 
     def compose_body(
-            self, data: bytes, finished: bool=False) -> Optional[bytes]:
+            self, data: bytes, finished: bool=False) -> bytes:
         assert not self._finished, "Composers are not reusable."
         assert self._using_chunked_body is not None, \
             "You should compose the initial first."
@@ -190,7 +190,7 @@ class H1ResponseComposer(BaseH1Composer):
         self, status_code: "http.HTTPStatus", *,
         version: Optional[constants.HttpVersion],
         headers: Optional[_HeaderType],
-        req_initial: initials.HttpRequestInitial
+        req_initial: Optional[initials.HttpRequestInitial]
             ) -> Tuple[initials.HttpResponseInitial, bytes]:
         assert self._using_chunked_body is None, "Composers are not reusable."
 

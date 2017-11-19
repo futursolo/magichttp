@@ -43,6 +43,10 @@ class UnparsableHttpInitial(ValueError):
     pass
 
 
+class IncompletedHttpBody(ValueError):
+    pass
+
+
 class BaseH1Parser(abc.ABC):
     __slots__ = (
         "_buf", "_searched_len", "_using_https", "_body_len_left",
@@ -65,6 +69,10 @@ class BaseH1Parser(abc.ABC):
         self._body_chunk_crlf_dropped = True
 
         self._finished = False
+
+        self._incompleted_body = False
+
+        self.buf_ended = False
 
     def _split_initial(self) -> Optional[List[bytes]]:
         pos = self._buf.find(b"\r\n\r\n", self._searched_len)
@@ -248,6 +256,9 @@ class BaseH1Parser(abc.ABC):
             current_chunk = bytes(self._buf)
             self._buf.clear()  # type: ignore
 
+            if self.buf_ended:
+                self._finished = True
+
         elif self._body_len_left == _CHUNKED_BODY:
             maybe_current_chunk = self._parse_chunked_body()
             if maybe_current_chunk is None:
@@ -258,6 +269,10 @@ class BaseH1Parser(abc.ABC):
             else:
                 current_chunk = maybe_current_chunk
 
+                if self.buf_ended and not current_chunk:
+                    raise IncompletedHttpBody(
+                        "The Buf ended before the last chunk has been found.")
+
         elif self._body_len_left >= len(self._buf):
             current_chunk = bytes(self._buf)
             self._body_len_left -= len(current_chunk)
@@ -267,6 +282,10 @@ class BaseH1Parser(abc.ABC):
             current_chunk = bytes(self._buf[0:self._body_len_left])
             self._body_len_left = 0
             del self._buf[0:self._body_len_left]
+
+        if self.buf_ended and not current_chunk and self._body_len_left > 0:
+            raise IncompletedHttpBody(
+                "Buffer ended before the body length can be reached.")
 
         return current_chunk
 

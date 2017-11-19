@@ -51,6 +51,13 @@ _HeaderType = Union[
     Iterable[Tuple[bytes, bytes]]]
 
 
+class HttpStreamInitialTooLargeError(Exception):
+    """
+    The Incoming Initial is too large.
+    """
+    pass
+
+
 class HttpStreamReadFinishedError(EOFError):
     """
     Raised when the end of the stream is reached.
@@ -68,7 +75,7 @@ class HttpStreamReadAbortedError(Exception):
 class HttpStreamMaxBufferLengthReachedError(Exception):
     """
     Raised when the max length of the stream buffer is reached before
-    the desired condition can be found.
+    the desired condition can be satisfied.
     """
     pass
 
@@ -98,7 +105,11 @@ class HttpStreamReceivedDataMalformedError(Exception):
 
 class BaseHttpStreamReaderDelegate(abc.ABC):
     @abc.abstractmethod
-    async def fetch_data(self) -> bytes:
+    def pause_reading(self) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def resume_reading(self) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -113,13 +124,15 @@ class BaseHttpStreamReader(abc.ABC):
         self._max_buf_len = 4 * 1024 * 1024  # 4M
 
         self._buf = bytearray()
+        self._wait_for_data_fur: Optional["asyncio.Future[None]"] = None
 
         self._read_lock = asyncio.Lock()
 
-        self._finished = asyncio.Event()
+        self._end_appended = asyncio.Event()
         self._exc: Optional[BaseException] = None
 
-        self._max_buf_len_changed: "asyncio.Future[None]" = asyncio.Future()
+        self._max_buf_len_changed_fur: Optional["asyncio.Future[None]"] = \
+            asyncio.Future()
 
     @property
     def max_buf_len(self) -> int:
@@ -129,59 +142,75 @@ class BaseHttpStreamReader(abc.ABC):
     def max_buf_len(self, new_max_buf_len: int) -> None:
         self._max_buf_len = new_max_buf_len
 
-        if not self._max_buf_len_changed.done():
-            self._max_buf_len_changed.set_result(None)
-            self._max_buf_len_changed = asyncio.Future()
+        if self._max_buf_len_changed_fur is not None and \
+                not self._max_buf_len_changed_fur.done():
+            self._max_buf_len_changed_fur.set_result(None)
 
     def buf_len(self) -> int:
         return len(self._buf)
 
-    async def _fill_buf(self) -> None:
-        if self._finished.is_set():
+    def _append_data(self, data: bytes) -> None:
+        if not data:
+            return
+
+        self._buf += data
+
+        if self.buf_len() >= self.max_buf_len:
+            self._delegate.pause_reading()
+
+        if self._wait_for_data_fur is not None and \
+                not self._wait_for_data_fur.done():
+            self._wait_for_data_fur.set_result(None)
+
+    def _append_end(self, exc: Optional[BaseException]) -> None:
+        if self._end_appended.is_set():
+            return
+
+        self._exc = exc
+
+        self._end_appended.set()
+
+        if self._wait_for_data_fur is not None and \
+                not self._wait_for_data_fur.done():
+            self._wait_for_data_fur.set_result(None)
+
+    async def _wait_for_data(self) -> None:
+        if self._end_appended.is_set():
             if self._exc is not None:
                 raise self._exc
 
             raise HttpStreamReadFinishedError
 
-        if self._max_buf_len_changed.done():
-            self._max_buf_len_changed = asyncio.Future()
+        former_buf_len = self.buf_len()
 
-        fetch_data_coro = self._delegate.fetch_data()
+        self._delegate.resume_reading()
 
+        self._max_buf_len_changed_fur = asyncio.Future()
+        self._wait_for_data_fur = asyncio.Future()
         try:
-            done, pending = await asyncio.wait(  # type: ignore
-                [fetch_data_coro, self._max_buf_len_changed],
+            done, pending = await asyncio.wait(
+                [self._wait_for_data_fur, self._max_buf_len_changed_fur],
                 return_when=asyncio.FIRST_COMPLETED)
 
-            if self._max_buf_len_changed in done:
-                fetch_data_coro.cancel()  # type: ignore
-
-                with contextlib.suppress(asyncio.CancelledError):
-                    await fetch_data_coro
-
+            if self._max_buf_len_changed_fur.done():
                 return
 
-            self._buf = fetch_data_coro.result()  # type: ignore
+            if former_buf_len <= self.buf_len():
+                # New data has been appended.
+                return
+
+            if self._end_appended.is_set():
+                if self._exc is not None:
+                    raise self._exc
+
+                raise HttpStreamReadFinishedError
 
         except asyncio.CancelledError:
-            fetch_data_coro.cancel()  # type: ignore
-
-            with contextlib.suppress(asyncio.CancelledError):
-                await fetch_data_coro
-
             raise
 
-        except HttpStreamReadFinishedError:
-            self._finished.set()
-
-            raise
-
-        except Exception as e:
-            if self._exc is None:
-                self._exc = e
-            self._finished.set()
-
-            raise
+        finally:
+            self._max_buf_len_changed_fur = None
+            self._wait_for_data_fur = None
 
     async def read(self, n: int=-1, exactly: bool=False) -> bytes:
         """
@@ -211,7 +240,7 @@ class BaseHttpStreamReader(abc.ABC):
 
                 while self.buf_len() < n:
                     try:
-                        await self._fill_buf()
+                        await self._wait_for_data()
 
                     except asyncio.CancelledError:
                         raise
@@ -225,7 +254,7 @@ class BaseHttpStreamReader(abc.ABC):
                         raise HttpStreamMaxBufferLengthReachedError
 
                     try:
-                        await self._fill_buf()
+                        await self._wait_for_data()
 
                     except asyncio.CancelledError:
                         raise
@@ -237,7 +266,7 @@ class BaseHttpStreamReader(abc.ABC):
                         return data
 
             elif self.buf_len() == 0:
-                await self._fill_buf()
+                await self._wait_for_data()
 
             data = bytes(self._buf[0:n])
             del self._buf[0:n]
@@ -277,7 +306,7 @@ class BaseHttpStreamReader(abc.ABC):
 
                     else:
                         try:
-                            await self._fill_buf()
+                            await self._wait_for_data()
 
                         except Exception as e:
                             if self.buf_len() > 0:
@@ -307,16 +336,15 @@ class BaseHttpStreamReader(abc.ABC):
         """
         return self._read_lock.locked()
 
-    async def wait_finished(self) -> None:
-        await self._finished.wait()
+    async def wait_end(self) -> None:
+        await self._end_appended.wait()
 
     def finished(self) -> bool:
         """
         Return True if the reader reached the end of the Request or Response.
         """
-        return self.buf_len() == 0 and self._finished.is_set()
+        return self.buf_len() == 0 and self._end_appended.is_set()
 
-    @abc.abstractmethod
     def abort(self) -> None:
         """
         Abort the reader without waiting for the end.
