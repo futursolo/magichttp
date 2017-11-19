@@ -187,7 +187,7 @@ class HttpClientProtocolDelegate(BaseHttpProtocolDelegate):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def write_request(
+    async def write_request(
         self, method: "constants.HttpRequestMethod", *,
         uri: bytes, authority: Optional[bytes],
         version: "constants.HttpVersion",
