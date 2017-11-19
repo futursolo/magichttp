@@ -66,22 +66,27 @@ class BaseH1StreamManager(
 
         self._marked_as_last_stream = False
 
-    @abc.abstractmethod
     def _maybe_cleanup(self) -> None:
-        raise NotImplementedError
+        if self._aborted:
+            if not self._read_ended:
+                if not self._read_exc:
+                    self._read_exc = readers.HttpStreamReadAbortedError()
 
-    @abc.abstractmethod
-    def _data_arrived(self) -> None:
-        raise NotImplementedError
+                if self._reader:
+                    self._reader._append_end(self._read_exc)
 
-    @abc.abstractmethod
-    def _eof_arrived(self) -> None:
-        raise NotImplementedError
+                self._read_ended = True
 
-    @property
-    @abc.abstractmethod
-    def _last_stream(self) -> Optional[bool]:
-        raise NotImplementedError
+            self._reader_ready.set()
+            self._writer_ready.set()
+
+            self._transport.close()
+
+        elif not (self._read_ended and self._write_finished):
+            return
+
+        if self._last_stream:
+            self._transport.close()
 
     @property
     @abc.abstractmethod
@@ -103,6 +108,18 @@ class BaseH1StreamManager(
     def _writer(self) -> Optional[writers.BaseHttpStreamWriter]:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def _data_arrived(self) -> None:
+        raise NotImplementedError
+
+    def _eof_arrived(self) -> None:
+        if self._read_ended:
+            return
+
+        self._parser.buf_ended = True
+
+        self._data_arrived()
+
     def _conn_lost(self, exc: Optional[BaseException]) -> None:
         if self._conn_exc is None:
             self._conn_exc = exc
@@ -114,6 +131,11 @@ class BaseH1StreamManager(
 
         if not self._write_finished:
             self.abort()
+
+    @property
+    @abc.abstractmethod
+    def _last_stream(self) -> Optional[bool]:
+        raise NotImplementedError
 
     def _mark_as_last_stream(self) -> None:
         self._marked_as_last_stream = True
@@ -130,6 +152,25 @@ class BaseH1StreamManager(
 
         self._transport.pause_reading()
 
+    def write_data(self, data: bytes, finished: bool=False) -> None:
+        if self._aborted:
+            raise writers.HttpStreamWriteAbortedError from self._conn_exc
+
+        if self._write_finished:
+            raise writers.HttpStreamWriteAfterFinishedError
+
+        data = self._composer.compose_body(data, finished=finished)
+
+        if self._pending_initial_bytes:
+            data = self._pending_initial_bytes + data
+            self._pending_initial_bytes = None
+
+        self._transport.write(data)
+
+        if finished:
+            self._write_finished = True
+            self._maybe_cleanup()
+
     async def flush_buf(self) -> None:
         if self._aborted:
             raise writers.HttpStreamWriteAbortedError from self._conn_exc
@@ -145,15 +186,22 @@ class BaseH1StreamManager(
 
         await self._protocol._flush()
 
+    async def wait_finished(self) -> None:
+        await self._reader_ready.wait()
+
+        if self._reader:
+            await self._reader.wait_end()
+
+        await self._writer_ready.wait()
+
+        if self._writer:
+            await self._writer.wait_finished()
+
     def finished(self) -> bool:
         if self._aborted:
             return True
 
         return self._read_ended and self._write_finished
-
-    @abc.abstractmethod
-    async def wait_finished(self) -> None:
-        raise NotImplementedError
 
     def abort(self) -> None:
         self._aborted = True
@@ -299,28 +347,6 @@ class H1ServerStreamManager(
     def _writer(self) -> Optional[writers.HttpResponseWriter]:
         return self.__writer
 
-    def _maybe_cleanup(self) -> None:
-        if self._aborted:
-            if not self._read_ended:
-                if not self._read_exc:
-                    self._read_exc = readers.HttpStreamReadAbortedError()
-
-                if self._reader:
-                    self._reader._append_end(self._read_exc)
-
-                self._read_ended = True
-
-            self._reader_ready.set()
-            self._writer_ready.set()
-
-            self._transport.close()
-
-        elif not (self._read_ended and self._write_finished):
-            return
-
-        if self._last_stream:
-            self._transport.close()
-
     def _data_arrived(self) -> None:
         if self._read_ended:
             return
@@ -387,14 +413,6 @@ class H1ServerStreamManager(
 
             self._maybe_cleanup()
 
-    def _eof_arrived(self) -> None:
-        if self._read_ended:
-            return
-
-        self._parser.buf_ended = True
-
-        self._data_arrived()
-
     @property
     def _last_stream(self) -> Optional[bool]:
         if not self.finished():
@@ -406,8 +424,16 @@ class H1ServerStreamManager(
         if self._reader is None or self._writer is None:
             return True
 
-        return self._writer.initial.headers[
-            b"connection"].lower() != b"keep-alive"
+        remote_conn_header = self._reader.initial.headers[
+            b"connection"].lower()
+
+        local_conn_header = self._writer.initial.headers[b"connection"].lower()
+
+        if remote_conn_header == local_conn_header == b"keep-alive":
+            return True
+
+        else:
+            return False
 
     async def read_request(self) -> readers.HttpRequestReader:
         await self._reader_ready.wait()
@@ -451,36 +477,6 @@ class H1ServerStreamManager(
         self._writer_ready.set()
 
         return writer
-
-    def write_data(self, data: bytes, finished: bool=False) -> None:
-        if self._aborted:
-            raise writers.HttpStreamWriteAbortedError from self._conn_exc
-
-        if self._write_finished:
-            raise writers.HttpStreamWriteAfterFinishedError
-
-        data = self._composer.compose_body(data, finished=finished)
-
-        if self._pending_initial_bytes:
-            data = self._pending_initial_bytes + data
-            self._pending_initial_bytes = None
-
-        self._transport.write(data)
-
-        if finished:
-            self._write_finished = True
-            self._maybe_cleanup()
-
-    async def wait_finished(self) -> None:
-        await self._reader_ready.wait()
-
-        if self._reader:
-            await self._reader.wait_end()
-
-        await self._writer_ready.wait()
-
-        if self._writer:
-            await self._writer.wait_finished()
 
 
 class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
@@ -547,22 +543,6 @@ class H1ClientStreamManager(
     @property
     def _writer(self) -> Optional[writers.HttpRequestWriter]:
         return self.__writer
-
-    def _maybe_cleanup(self) -> None:
-        if self._aborted:
-            if not self._read_ended:
-                if not self._read_exc:
-                    self._read_exc = readers.HttpStreamReadAbortedError()
-
-                if self._reader:
-                    self._reader._append_end(self._read_exc)
-
-                self._read_ended = True
-
-            self._reader_ready.set()
-            self._writer_ready.set()
-
-            self._transport.close()
 
     def _data_arrived(self) -> None:
         if self._read_ended:
@@ -633,14 +613,6 @@ class H1ClientStreamManager(
 
             self._maybe_cleanup()
 
-    def _eof_arrived(self) -> None:
-        if self._read_ended:
-            return
-
-        self._parser.buf_ended = True
-
-        self._data_arrived()
-
     @property
     def _last_stream(self) -> Optional[bool]:
         if not self.finished():
@@ -652,8 +624,16 @@ class H1ClientStreamManager(
         if self._reader is None or self._writer is None:
             return True
 
-        return self._reader.initial.headers[
-            b"connection"].lower() != b"keep-alive"
+        remote_conn_header = self._reader.initial.headers[
+            b"connection"].lower()
+
+        local_conn_header = self._writer.initial.headers[b"connection"].lower()
+
+        if remote_conn_header == local_conn_header == b"keep-alive":
+            return True
+
+        else:
+            return False
 
     def write_request(
         self, method: "constants.HttpRequestMethod", *,
@@ -681,25 +661,6 @@ class H1ClientStreamManager(
 
         return writer
 
-    def write_data(self, data: bytes, finished: bool=False) -> None:
-        if self._aborted:
-            raise writers.HttpStreamWriteAbortedError from self._conn_exc
-
-        if self._write_finished:
-            raise writers.HttpStreamWriteAfterFinishedError
-
-        data = self._composer.compose_body(data, finished=finished)
-
-        if self._pending_initial_bytes:
-            data = self._pending_initial_bytes + data
-            self._pending_initial_bytes = None
-
-        self._transport.write(data)
-
-        if finished:
-            self._write_finished = True
-            self._maybe_cleanup()
-
     async def read_response(self) -> readers.HttpResponseReader:
         await self._reader_ready.wait()
 
@@ -717,17 +678,6 @@ class H1ClientStreamManager(
             raise NotImplementedError("This is not gonna happen.")
 
         return self._reader
-
-    async def wait_finished(self) -> None:
-        await self._writer_ready.wait()
-
-        if self._writer:
-            await self._writer.wait_finished()
-
-        await self._reader_ready.wait()
-
-        if self._reader:
-            await self._reader.wait_end()
 
 
 class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
