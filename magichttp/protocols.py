@@ -15,24 +15,28 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from typing import AsyncIterator, Optional, Any, Union, Mapping, Iterable, \
-    Tuple
+from typing import AsyncIterator, Optional, Union, Mapping, Iterable, Tuple
 
-from . import streams
-from . import initials
-from . import impls
-from . import exceptions
+from . import h1impls
+from . import readers
+from . import constants
 
 import asyncio
 import abc
 import typing
 
 if typing.TYPE_CHECKING:
-    from . import constants
-    from . import readers
     from . import writers
 
-__all__ = ["HttpServerProtocol", "HttpClientProtocol"]
+__all__ = [
+    "BaseHttpProtocolDelegate",
+    "BaseHttpProtocol",
+
+    "HttpServerProtocolDelegate",
+    "HttpServerProtocol",
+
+    "HttpClientProtocolDelegate",
+    "HttpClientProtocol"]
 
 _HeaderType = Union[
     Mapping[bytes, bytes],
@@ -76,16 +80,13 @@ class BaseHttpProtocolDelegate(abc.ABC):
 
 
 class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
-    _STREAM_BUFFER_LIMIT = 4 * 1024 * 1024  # 4M
-    _INITIAL_BUFFER_LIMIT = 64 * 1024  # 64K
+    _MAX_INITIAL_SIZE = 64 * 1024  # 64K
 
     def __init__(self) -> None:
         super().__init__()
 
         self._drained_event = asyncio.Event()
         self._drained_event.set()
-
-        self._impl: Optional[impls.BaseHttpImpl] = None
 
         self._open_after_eof = True
 
@@ -96,6 +97,11 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
         self._open_after_eof = transport.get_extra_info("sslcontext") is None
 
         self._transport = transport
+
+    @property
+    @abc.abstractmethod
+    def _delegate(self) -> BaseHttpProtocolDelegate:
+        raise NotImplementedError
 
     @property
     def transport(self) -> asyncio.Transport:
@@ -122,25 +128,22 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
         await self._drained_event.wait()
 
     def data_received(self, data: bytes) -> None:
-        assert self._impl is not None
-
-        self._impl.data_received(data)
+        self._delegate.data_received(data)
 
     def eof_received(self) -> bool:
-        assert self._impl is not None
-
-        self._impl.eof_received()
+        self._delegate.eof_received()
 
         return self._open_after_eof
 
-    async def close(self) -> None:
-        assert self._impl is not None
+    def close(self) -> None:
+        self._delegate.close()
 
-        await self._impl.close()
+    async def wait_closed(self) -> None:
+        await self._delegate.wait_finished()
 
     def connection_lost(self, exc: Optional[BaseException]) -> None:
-        if self._impl is not None:
-            self._impl.connection_lost(exc)
+        if hasattr(self, "_delegate"):
+            self._delegate.connection_lost(exc)
 
         self._drained_event.set()
 
@@ -153,29 +156,40 @@ class HttpServerProtocolDelegate(BaseHttpProtocolDelegate):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def read_request(self) -> "readers.HttpRequestReader":
+    async def read_request(self) -> readers.HttpRequestReader:
         raise NotImplementedError
 
 
 class HttpServerProtocol(
-        BaseHttpProtocol, AsyncIterator["streams.HttpRequestReader"]):
+        BaseHttpProtocol, AsyncIterator[readers.HttpRequestReader]):
+    def __init__(self) -> None:
+        super().__init__()
+
+        self.__delegate: Optional[HttpServerProtocolDelegate] = None
+
+    @property
+    def _delegate(self) -> HttpServerProtocolDelegate:
+        if self.__delegate is None:
+            raise AttributeError("Delegate is not ready.")
+
+        return self.__delegate
+
     def connection_made(  # type: ignore
             self, transport: asyncio.Transport) -> None:
-        self._impl = impls.H1ServerImpl(protocol=self, transport=transport)
+        self.__delegate = h1impls.H1ServerImpl(self, transport)
 
         super().connection_made(transport)
 
-    def __aiter__(self) -> AsyncIterator["streams.HttpRequestReader"]:
+    def __aiter__(self) -> AsyncIterator[readers.HttpRequestReader]:
         return self
 
-    async def __anext__(self) -> "streams.HttpRequestReader":
-        assert isinstance(self._impl, impls.BaseHttpServerImpl)
-
+    async def __anext__(self) -> readers.HttpRequestReader:
         try:
-            return await self._impl.read_request()
+            return await self._delegate.read_request()
 
-        except (exceptions.HttpConnectionClosingError,
-                exceptions.HttpConnectionClosedError) as e:
+        except (
+                readers.HttpStreamReadFinishedError,
+                readers.HttpStreamReadAbortedError) as e:
             raise StopAsyncIteration from e
 
 
@@ -188,24 +202,42 @@ class HttpClientProtocolDelegate(BaseHttpProtocolDelegate):
 
     @abc.abstractmethod
     async def write_request(
-        self, method: "constants.HttpRequestMethod", *,
+        self, method: constants.HttpRequestMethod, *,
         uri: bytes, authority: Optional[bytes],
-        version: "constants.HttpVersion",
+        version: constants.HttpVersion,
         scheme: Optional[bytes],
             headers: Optional[_HeaderType]) -> "writers.HttpRequestWriter":
         raise NotImplementedError
 
 
 class HttpClientProtocol(BaseHttpProtocol):
+    def __init__(self) -> None:
+        super().__init__()
+
+        self.__delegate: Optional[HttpClientProtocolDelegate] = None
+
+    @property
+    def _delegate(self) -> HttpClientProtocolDelegate:
+        if self.__delegate is None:
+            raise AttributeError("Delegate is not ready.")
+
+        return self.__delegate
+
     def connection_made(  # type: ignore
             self, transport: asyncio.Transport) -> None:
-        self._impl = impls.H1ClientImpl(protocol=self, transport=transport)
+        self.__delegate = h1impls.H1ClientImpl(self, transport)
 
         super().connection_made(transport)
 
     async def write_request(
-        self, req_initial: initials.HttpRequestInitial) -> \
-            "streams.HttpRequestWriter":
-        assert isinstance(self._impl, impls.BaseHttpClientImpl)
-
-        return await self._impl.write_request(req_initial)
+        self, method: constants.HttpRequestMethod, *,
+        uri: bytes=b"/", authority: Optional[bytes]=None,
+        version: Union[
+            bytes, constants.HttpVersion]=constants.HttpVersion.V1_1,
+        scheme: Optional[bytes]=None,
+        headers: Optional[_HeaderType]=None) -> \
+            "writers.HttpRequestWriter":
+        return await self._delegate.write_request(
+            method, uri=uri, authority=authority,
+            version=constants.HttpVersion(version),
+            scheme=scheme, headers=headers)

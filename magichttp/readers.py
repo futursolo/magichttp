@@ -31,13 +31,13 @@ if typing.TYPE_CHECKING:
 
 __all__ = [
     "HttpStreamReadFinishedError",
-    "HttpStreamAbortedError",
+    "HttpStreamReadAbortedError",
     "HttpStreamMaxBufferLengthReachedError",
     "HttpStreamReadUnsatisfiableError",
     "HttpStreamSeparatorNotFoundError",
     "HttpStreamReceivedDataMalformedError",
 
-    "BaseHttpStreamReaderDelegate"
+    "BaseHttpStreamReaderDelegate",
     "BaseHttpStreamReader",
 
     "HttpRequestReaderDelegate",
@@ -386,12 +386,13 @@ class HttpRequestReader(BaseHttpStreamReader):
 
     def write_response(
         self, status_code: Union[int, http.HTTPStatus], *,
-        version: Optional[constants.HttpVersion]=None,
+        version: Union[
+            bytes, constants.HttpVersion]=constants.HttpVersion.V1_1,
         headers: Optional[_HeaderType]=None
             ) -> "writers.HttpResponseWriter":
         self._writer = self.__delegate.write_response(
             http.HTTPStatus(status_code),
-            version=version or constants.HttpVersion.V1_1,
+            version=constants.HttpVersion(version),
             headers=headers)
 
         return self._writer

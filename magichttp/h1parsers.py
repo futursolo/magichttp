@@ -27,6 +27,7 @@ import magicdict
 
 __all__ = [
     "UnparsableHttpInitial",
+    "IncompletedHttpBody",
 
     "BaseH1Parser",
     "H1RequestParser",

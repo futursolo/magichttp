@@ -30,7 +30,6 @@ import asyncio
 
 if typing.TYPE_CHECKING:
     from . import constants
-    from . import protocols
 
     import http
 
@@ -51,7 +50,7 @@ class BaseH1StreamManager(
         self._transport = self._impl._transport
         self._protocol = self._impl._protocol
 
-        self._max_initial_size = self._protocol._INITIAL_BUFFER_LIMIT
+        self._max_initial_size = self._protocol._MAX_INITIAL_SIZE
 
         self._reader_ready = asyncio.Event()
         self._read_exc: Optional[BaseException] = None
@@ -164,7 +163,7 @@ class BaseH1StreamManager(
 
 class BaseH1Impl(protocols.BaseHttpProtocolDelegate):
     def __init__(
-        self, protocol: "protocols.BaseHttpProtocol",
+        self, protocol: protocols.BaseHttpProtocol,
             transport: asyncio.Transport) -> None:
         self._protocol = protocol
         self._transport = transport
@@ -486,7 +485,7 @@ class H1ServerStreamManager(
 
 class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
     def __init__(
-        self, protocol: "protocols.HttpServerProtocol",
+        self, protocol: protocols.HttpServerProtocol,
             transport: asyncio.Transport) -> None:
         self.__stream_mgr = H1ServerStreamManager(self, self._buf)
 
@@ -496,7 +495,7 @@ class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
     def _stream_mgr(self) -> H1ServerStreamManager:
         return self.__stream_mgr
 
-    async def read_request(self) -> "readers.HttpRequestReader":
+    async def read_request(self) -> readers.HttpRequestReader:
         async with self._init_lock:
             if self._init_finished:
                 await self._stream_mgr.wait_finished()
@@ -661,7 +660,7 @@ class H1ClientStreamManager(
         uri: bytes, authority: Optional[bytes],
         version: "constants.HttpVersion",
         scheme: Optional[bytes],
-            headers: Optional[_HeaderType]) -> "writers.HttpRequestWriter":
+            headers: Optional[_HeaderType]) -> writers.HttpRequestWriter:
         if self._writer is not None:
             raise writers.HttpStreamWriteDuplicatedError(
                 "You cannot write response twice.")
@@ -701,7 +700,7 @@ class H1ClientStreamManager(
             self._write_finished = True
             self._maybe_cleanup()
 
-    async def read_response(self) -> "readers.HttpResponseReader":
+    async def read_response(self) -> readers.HttpResponseReader:
         await self._reader_ready.wait()
 
         if self._reader is None:
@@ -733,8 +732,8 @@ class H1ClientStreamManager(
 
 class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
     def __init__(
-        self, protocol: "protocols.HttpClientProtocol",
-            transport: "asyncio.Transport") -> None:
+        self, protocol: protocols.HttpClientProtocol,
+            transport: asyncio.Transport) -> None:
         self.__stream_mgr = H1ClientStreamManager(self, self._buf)
 
         super().__init__(protocol, transport)
@@ -748,7 +747,7 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
         uri: bytes, authority: Optional[bytes],
         version: "constants.HttpVersion",
         scheme: Optional[bytes],
-            headers: Optional[_HeaderType]) -> "writers.HttpRequestWriter":
+            headers: Optional[_HeaderType]) -> writers.HttpRequestWriter:
         async with self._init_lock:
             if self._init_finished:
                 await self._stream_mgr.wait_finished()
