@@ -18,13 +18,12 @@
 from typing import Optional, Union, Iterable, Tuple, Mapping, Any
 
 import magicdict
-import enum
-import collections
-import http
 import typing
 
 if typing.TYPE_CHECKING:
     from . import constants
+
+    import http
 
 __all__ = [
     "HttpRequestInitial", "HttpResponseInitial"]
@@ -34,34 +33,21 @@ _HeaderType = Union[
     Iterable[Tuple[bytes, bytes]]]
 
 
-def _refine_headers(
-    headers: Optional[_HeaderType]) -> \
-        magicdict.FrozenTolerantMagicDict[bytes, bytes]:
-    if headers is None:
-        return magicdict.FrozenTolerantMagicDict()
-
-    elif isinstance(headers, magicdict.FrozenTolerantMagicDict):
-        return headers
-
-    else:
-        return magicdict.FrozenTolerantMagicDict(headers)
-
-
 class HttpRequestInitial:
     __slots__ = (
         "_method", "_version", "_uri", "_headers", "_authority", "_scheme")
 
-    def __init__(  # TODO: Remove Optionals.
+    def __init__(
         self, method: "constants.HttpRequestMethod", *,
-        uri: bytes, authority: Optional[bytes]=None,
-        version: Optional["constants.HttpVersion"]=None,
-        scheme: Optional[bytes]=None,
-            headers: Optional[_HeaderType]=None) -> None:
+        uri: bytes, authority: Optional[bytes],
+        version: "constants.HttpVersion",
+        scheme: Optional[bytes],
+            headers: magicdict.FrozenTolerantMagicDict[bytes, bytes]) -> None:
         self._method = method
         self._version = version
         self._uri = uri
 
-        self._headers = _refine_headers(headers)
+        self._headers = headers
 
         self._authority = authority
         self._scheme = scheme
@@ -71,7 +57,7 @@ class HttpRequestInitial:
         return self._method
 
     @property
-    def version(self) -> Optional["constants.HttpVersion"]:
+    def version(self) -> "constants.HttpVersion":
         return self._version
 
     @property
@@ -81,14 +67,14 @@ class HttpRequestInitial:
     @property
     def authority(self) -> bytes:
         if self._authority is None:
-            raise AttributeError("Authority is not set.")
+            raise AttributeError("Authority is not available.")
 
         return self._authority
 
     @property
     def scheme(self) -> bytes:
         if self._scheme is None:
-            raise AttributeError("Scheme is not set.")
+            raise AttributeError("Scheme is not available.")
 
         return self._scheme
 
@@ -97,20 +83,21 @@ class HttpRequestInitial:
         return self._headers
 
     def __repr__(self) -> str:
-        parts: "collections.OrderedDict[str, str]" = collections.OrderedDict([
+        parts = [
             ("method", repr(self._method)),
             ("uri", repr(self._uri)),
-        ])
+            ("version", repr(self._version))
+        ]
 
-        if self._version is not None:
-            parts["version"] = repr(self._version)
+        if self._authority is not None:
+            parts.append(("authority", repr(self._authority)))
 
         if self._scheme is not None:
-            parts["scheme"] = repr(self._scheme)
+            parts.append(("scheme", repr(self._scheme)))
 
-        parts["headers"] = self._headers
+        parts.append(("headers", repr(self._headers)))
 
-        args_repr = ", ".join([f"{k}={v}" for k, v in parts.items()])
+        args_repr = ", ".join([f"{k}={v}" for k, v in parts])
 
         return f"{self.__class__.__name__}({args_repr})"
 
@@ -122,21 +109,20 @@ class HttpResponseInitial:
     __slots__ = ("_status_code", "_version", "_headers")
 
     def __init__(
-        self, status_code: Union[int, http.HTTPStatus], *,  # TODO: Remove int.
-        version: Optional["constants.HttpVersion"]=None,
-            # TODO: Remove Optionals.
-            headers: Optional[_HeaderType]=None) -> None:
-        self._status_code = http.HTTPStatus(status_code)
+        self, status_code: "http.HTTPStatus", *,
+        version: "constants.HttpVersion",
+            headers: magicdict.FrozenTolerantMagicDict[bytes, bytes]) -> None:
+        self._status_code = status_code
         self._version = version
 
-        self._headers = _refine_headers(headers)
+        self._headers = headers
 
     @property
     def status_code(self) -> http.HTTPStatus:
         return self._status_code
 
     @property
-    def version(self) -> Optional["constants.HttpVersion"]:
+    def version(self) -> "constants.HttpVersion":
         return self._version
 
     @property
@@ -144,16 +130,13 @@ class HttpResponseInitial:
         return self._headers
 
     def __repr__(self) -> str:
-        parts: "collections.OrderedDict[str, str]" = collections.OrderedDict([
-            ("status_code", repr(self._status_code))
-        ])
+        parts = [
+            ("status_code", repr(self._status_code)),
+            ("version", repr(self._version)),
+            ("headers", repr(self._headers))
+        ]
 
-        if self._version is not None:
-            parts["version"] = repr(self._version)
-
-        parts["headers"] = self._headers
-
-        args_repr = ", ".join([f"{k}={v}" for k, v in parts.items()])
+        args_repr = ", ".join([f"{k}={v}" for k, v in parts])
 
         return f"{self.__class__.__name__}({args_repr})"
 

@@ -358,7 +358,18 @@ class H1ServerStreamManager(
             if not self._buf:
                 return
 
-            initial = self._parser.parse_request()
+            try:
+                initial = self._parser.parse_request()
+
+            except h1parsers.UnparsableHttpInitial as e:
+                self._read_exc = readers.HttpStreamReceivedDataMalformedError()
+                self._read_exc.__cause__ = e
+                self._reader_ready.set()
+                self._reader_ended = True
+
+                self._maybe_cleanup()
+
+                return
 
             if initial is None:
                 if len(self._buf) > self._max_initial_size:
@@ -455,7 +466,6 @@ class H1ServerStreamManager(
 
     def write_response(
         self, status_code: "http.HTTPStatus", *,
-        version: "constants.HttpVersion",
         headers: Optional[_HeaderType]
             ) -> writers.HttpResponseWriter:
         if self._writer is not None:
@@ -467,7 +477,7 @@ class H1ServerStreamManager(
 
         initial, self._response_initial_bytes = \
             self._composer.compose_response(
-                status_code=status_code, version=version, headers=headers,
+                status_code=status_code, headers=headers,
                 req_initial=self._reader.initial if self._reader else None)
 
         writer = writers.HttpResponseWriter(
@@ -557,7 +567,16 @@ class H1ClientStreamManager(
             if not self._buf:
                 return
 
-            initial = self._parser.parse_response(self._writer.initial)
+            try:
+                initial = self._parser.parse_response(self._writer.initial)
+
+            except h1parsers.UnparsableHttpInitial as e:
+                self._read_exc = readers.HttpStreamReceivedDataMalformedError()
+                self._read_exc.__cause__ = e
+                self._reader_ready.set()
+                self._reader_ended = True
+
+                self._maybe_cleanup()
 
             if initial is None:
                 if len(self._buf) > self._max_initial_size:

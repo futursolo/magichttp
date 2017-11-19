@@ -356,7 +356,6 @@ class HttpRequestReaderDelegate(BaseHttpStreamReaderDelegate):
     @abc.abstractmethod
     def write_response(
         self, status_code: http.HTTPStatus, *,
-        version: constants.HttpVersion,
         headers: Optional[_HeaderType]
             ) -> "writers.HttpResponseWriter":
         raise NotImplementedError
@@ -386,13 +385,11 @@ class HttpRequestReader(BaseHttpStreamReader):
 
     def write_response(
         self, status_code: Union[int, http.HTTPStatus], *,
-        version: Union[
-            bytes, constants.HttpVersion]=constants.HttpVersion.V1_1,
         headers: Optional[_HeaderType]=None
             ) -> "writers.HttpResponseWriter":
+
         self._writer = self.__delegate.write_response(
             http.HTTPStatus(status_code),
-            version=constants.HttpVersion(version),
             headers=headers)
 
         return self._writer

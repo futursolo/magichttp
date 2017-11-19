@@ -168,8 +168,11 @@ class H1RequestComposer(BaseH1Composer):
         else:
             self._using_chunked_body = False
 
-        if authority is not None and b"host" not in refined_headers.keys():
-            refined_headers[b"host"] = authority
+        if authority is not None:
+            refined_headers.setdefault(b"host", authority)
+
+        if scheme is not None:
+            refined_headers.setdefault(b"x-scheme", scheme)
 
         refined_initial = initials.HttpRequestInitial(
             method,
@@ -188,25 +191,22 @@ class H1RequestComposer(BaseH1Composer):
 class H1ResponseComposer(BaseH1Composer):
     def compose_response(
         self, status_code: "http.HTTPStatus", *,
-        version: Optional[constants.HttpVersion],
         headers: Optional[_HeaderType],
         req_initial: Optional[initials.HttpRequestInitial]
             ) -> Tuple[initials.HttpResponseInitial, bytes]:
         assert self._using_chunked_body is None, "Composers are not reusable."
 
-        if version is None:
-            if req_initial is None:
-                if status_code < 400:
-                    raise HttpRequestInitialRequiredForComposing(
-                        "req_initial is required for "
-                        "a status code less than 400.")
-
-                else:
-                    version = constants.HttpVersion.V1_1
+        if req_initial is None:
+            if status_code < 400:
+                raise HttpRequestInitialRequiredForComposing(
+                    "req_initial is required for "
+                    "a status code less than 400.")
 
             else:
-                assert req_initial.version is not None
-                version = req_initial.version
+                version = constants.HttpVersion.V1_1
+
+        else:
+            version = req_initial.version
 
         refined_headers: MutableMapping[bytes, bytes]
         if headers:
