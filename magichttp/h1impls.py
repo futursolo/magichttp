@@ -124,6 +124,9 @@ class BaseH1StreamManager(
 
         self._data_arrived()
 
+        if self._reader is None:
+            self.abort()
+
     def _conn_lost(self, exc: Optional[BaseException]) -> None:
         if self._conn_exc is None:
             self._conn_exc = exc
@@ -538,9 +541,6 @@ class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
             if self._init_finished:
                 await self._stream_mgr.wait_finished()
 
-                for _ in range(0, 2):
-                    await asyncio.sleep(0)
-
                 if self.finished():
                     raise readers.HttpStreamReadFinishedError \
                         from self._conn_exc
@@ -768,9 +768,6 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
         async with self._init_lock:
             if self._init_finished:
                 await self._stream_mgr.wait_finished()
-
-                for _ in range(0, 2):
-                    await asyncio.sleep(0)
 
                 if self.finished():
                     raise writers.HttpStreamWriteAfterFinishedError \
