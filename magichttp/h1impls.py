@@ -538,7 +538,7 @@ class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
             if self._init_finished:
                 await self._stream_mgr.wait_finished()
 
-                for _ range(0, 2):
+                for _ in range(0, 2):
                     await asyncio.sleep(0)
 
                 if self.finished():
@@ -769,7 +769,7 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
             if self._init_finished:
                 await self._stream_mgr.wait_finished()
 
-                for _ range(0, 2):
+                for _ in range(0, 2):
                     await asyncio.sleep(0)
 
                 if self.finished():
