@@ -51,7 +51,8 @@ class IncompletedHttpBody(ValueError):
 class BaseH1Parser(abc.ABC):
     __slots__ = (
         "_buf", "_searched_len", "_using_https", "_body_len_left",
-        "_body_chunk_len_left", "_body_chunk_crlf_dropped", "_finished")
+        "_body_chunk_len_left", "_body_chunk_crlf_dropped", "_finished",
+        "_incompleted_body", "buf_ended")
 
     def __init__(self, buf: bytearray, using_https: bool=False) -> None:
         self._buf = buf

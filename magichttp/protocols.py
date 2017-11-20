@@ -80,6 +80,10 @@ class BaseHttpProtocolDelegate(abc.ABC):
 
 
 class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
+    __slots__ = (
+        "_MAX_INITIAL_SIZE", "_drained_event", "_open_after_eof",
+        "_transport", "__delegate")
+
     _MAX_INITIAL_SIZE = 64 * 1024  # 64K
 
     def __init__(self) -> None:
@@ -204,15 +208,20 @@ class HttpClientProtocolDelegate(BaseHttpProtocolDelegate):
     async def write_request(
         self, method: constants.HttpRequestMethod, *,
         uri: bytes, authority: Optional[bytes],
-        version: constants.HttpVersion,
         scheme: Optional[bytes],
             headers: Optional[_HeaderType]) -> "writers.HttpRequestWriter":
         raise NotImplementedError
 
 
 class HttpClientProtocol(BaseHttpProtocol):
-    def __init__(self) -> None:
+    __slots__ = BaseHttpProtocol.__slots__ + ("_http_version",)
+
+    def __init__(
+        self, *, http_version:
+            constants.HttpVersion=constants.HttpVersion.V1_1) -> None:
         super().__init__()
+
+        self._http_version = http_version
 
         self.__delegate: Optional[HttpClientProtocolDelegate] = None
 
@@ -232,12 +241,9 @@ class HttpClientProtocol(BaseHttpProtocol):
     async def write_request(
         self, method: constants.HttpRequestMethod, *,
         uri: bytes=b"/", authority: Optional[bytes]=None,
-        version: Union[
-            bytes, constants.HttpVersion]=constants.HttpVersion.V1_1,
         scheme: Optional[bytes]=None,
         headers: Optional[_HeaderType]=None) -> \
             "writers.HttpRequestWriter":
         return await self._delegate.write_request(
             method, uri=uri, authority=authority,
-            version=constants.HttpVersion(version),
             scheme=scheme, headers=headers)

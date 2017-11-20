@@ -118,6 +118,11 @@ class BaseHttpStreamReaderDelegate(abc.ABC):
 
 
 class BaseHttpStreamReader(abc.ABC):
+    __slots__ = (
+        "_delegate", "__delegate", "_max_buf_len", "_buf",
+        "_wait_for_data_fur", "_read_lock", "_end_appended", "_exc",
+        "_max_buf_len_changed_fur", "_initial", "_writer")
+
     def __init__(
             self, __delegate: BaseHttpStreamReaderDelegate) -> None:
         self._delegate = __delegate

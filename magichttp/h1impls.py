@@ -528,6 +528,8 @@ class H1ClientStreamManager(
     def __init__(self, __impl: "H1ClientImpl", buf: bytearray) -> None:
         super().__init__(__impl, buf)
 
+        self._http_version = __impl._http_version
+
         self.__composer = h1composers.H1RequestComposer(
             self._impl._using_https)
         self.__parser = h1parsers.H1ResponseParser(
@@ -657,7 +659,6 @@ class H1ClientStreamManager(
     def write_request(
         self, method: "constants.HttpRequestMethod", *,
         uri: bytes, authority: Optional[bytes],
-        version: "constants.HttpVersion",
         scheme: Optional[bytes],
             headers: Optional[_HeaderType]) -> writers.HttpRequestWriter:
         if self._writer is not None:
@@ -669,7 +670,8 @@ class H1ClientStreamManager(
 
         initial, self._request_initial_bytes = \
             self._composer.compose_request(
-                method=method, uri=uri, authority=authority, version=version,
+                method=method, uri=uri, authority=authority,
+                version=self._http_version,
                 scheme=scheme, headers=headers)
 
         writer = writers.HttpRequestWriter(
@@ -703,6 +705,8 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
     def __init__(
         self, protocol: protocols.HttpClientProtocol,
             transport: asyncio.Transport) -> None:
+        self._http_version = protocol._http_version
+
         self.__stream_mgr = H1ClientStreamManager(self, self._buf)
 
         super().__init__(protocol, transport)
@@ -714,7 +718,6 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
     async def write_request(
         self, method: "constants.HttpRequestMethod", *,
         uri: bytes, authority: Optional[bytes],
-        version: "constants.HttpVersion",
         scheme: Optional[bytes],
             headers: Optional[_HeaderType]) -> writers.HttpRequestWriter:
         async with self._init_lock:
@@ -732,8 +735,8 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
                     self._new_stream_mgr_fur.set_result(None)
 
             writer = self._stream_mgr.write_request(
-                method, uri=uri, authority=authority, version=version,
-                scheme=scheme, headers=headers)
+                method, uri=uri, authority=authority, scheme=scheme,
+                headers=headers)
             self._init_finished = True
 
             return writer

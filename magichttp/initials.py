@@ -17,12 +17,12 @@
 
 from typing import Optional, Union, Iterable, Tuple, Mapping, Any
 
-import magicdict
 import typing
 
 if typing.TYPE_CHECKING:
     from . import constants
 
+    import magicdict
     import http
 
 __all__ = [
@@ -42,7 +42,8 @@ class HttpRequestInitial:
         uri: bytes, authority: Optional[bytes],
         version: "constants.HttpVersion",
         scheme: Optional[bytes],
-            headers: magicdict.FrozenTolerantMagicDict[bytes, bytes]) -> None:
+        headers: "magicdict.FrozenTolerantMagicDict[bytes, bytes]"
+            ) -> None:
         self._method = method
         self._version = version
         self._uri = uri
@@ -79,7 +80,7 @@ class HttpRequestInitial:
         return self._scheme
 
     @property
-    def headers(self) -> magicdict.FrozenTolerantMagicDict[bytes, bytes]:
+    def headers(self) -> "magicdict.FrozenTolerantMagicDict[bytes, bytes]":
         return self._headers
 
     def __repr__(self) -> str:
@@ -111,7 +112,8 @@ class HttpResponseInitial:
     def __init__(
         self, status_code: "http.HTTPStatus", *,
         version: "constants.HttpVersion",
-            headers: magicdict.FrozenTolerantMagicDict[bytes, bytes]) -> None:
+        headers: "magicdict.FrozenTolerantMagicDict[bytes, bytes]"
+            ) -> None:
         self._status_code = status_code
         self._version = version
 
@@ -126,7 +128,7 @@ class HttpResponseInitial:
         return self._version
 
     @property
-    def headers(self) -> magicdict.FrozenTolerantMagicDict[bytes, bytes]:
+    def headers(self) -> "magicdict.FrozenTolerantMagicDict[bytes, bytes]":
         return self._headers
 
     def __repr__(self) -> str:

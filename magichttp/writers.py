@@ -76,6 +76,10 @@ class BaseHttpStreamWriterDelegate(abc.ABC):
 
 
 class BaseHttpStreamWriter(abc.ABC):
+    __slots__ = (
+        "_delegate", "__delegate", "_buf", "_flush_lock", "_finished", "_exc",
+        "_max_buf_len_changed", "_initial", "_reader")
+
     def __init__(self, __delegate: BaseHttpStreamWriterDelegate) -> None:
         self._delegate = __delegate
         self._max_buf_len = 4 * 1024 * 1024  # 4M
