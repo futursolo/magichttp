@@ -15,14 +15,13 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from typing import List, Optional
+from typing import List, Optional, Set
 
 import asyncio
 import magichttp
 import weakref
 
 import traceback
-
 
 class _EchoServerProtocol(magichttp.HttpServerProtocol):
     def __init__(self) -> None:
@@ -56,8 +55,7 @@ class EchoHttpServer:
 
         self._srv: Optional[asyncio.AbstractServer] = None
 
-        self._tsks: "weakref.WeakSet[asyncio.Task[None]]" = \
-            weakref.WeakSet()
+        self._tsks: Set[asyncio.Task[None]] = set()
 
     async def listen(self, port: int, *, host: str="localhost") -> None:
         assert self._srv is None
@@ -80,20 +78,18 @@ class EchoHttpServer:
         try:
             body = await req_reader.read()
 
-        except magichttp.HttpStreamFinishedError:
+        except magichttp.HttpStreamReadFinishedError:
             body = b""
         print(f"Request Body: {body}")
 
-        res_initial = magichttp.HttpResponseInitial(
+        writer = req_reader.write_response(
             200, headers={b"Content-Type": b"text/plain"})
-
-        writer = await req_reader.write_response(res_initial)
         print(f"Response Sent: {writer.initial}")
 
         writer.write(b"Got it!")
         print(f"Response Body: b'Got it!'")
 
-        await writer.finish()
+        writer.finish()
         print(f"Stream Finished.")
 
     async def _read_requests(self, protocol: _EchoServerProtocol) -> None:
@@ -112,9 +108,13 @@ class EchoHttpServer:
         except Exception:
             traceback.print_exc()
 
-            await protocol.close()
+            protocol.close()
+
+            raise
 
         finally:
+            await protocol.wait_closed()
+
             print("Connection lost.")
 
     async def close(self) -> None:
@@ -123,9 +123,14 @@ class EchoHttpServer:
 
         self._srv.close()
 
+        for protocol in self._protocols:
+            protocol.close()
+
+        await asyncio.sleep(0)
+
         if self._protocols:
             await asyncio.wait(
-                [protocol.close() for protocol in self._protocols])
+                [protocol.wait_closed() for protocol in self._protocols])
 
         await asyncio.sleep(0)
 

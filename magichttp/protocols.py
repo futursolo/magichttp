@@ -80,8 +80,7 @@ class BaseHttpProtocolDelegate(abc.ABC):
 
 class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
     __slots__ = (
-        "_MAX_INITIAL_SIZE", "_drained_event", "_open_after_eof",
-        "_transport", "__delegate")
+        "_drained_event", "_open_after_eof", "_transport", "__delegate")
 
     _MAX_INITIAL_SIZE = 64 * 1024  # 64K
 
@@ -94,6 +93,8 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
         self._open_after_eof = True
 
         self._transport: Optional[asyncio.Transport] = None
+
+        self._conn_lost = asyncio.Event()
 
     def connection_made(  # type: ignore
             self, transport: asyncio.Transport) -> None:
@@ -143,13 +144,15 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
         self._delegate.close()
 
     async def wait_closed(self) -> None:
-        await self._delegate.wait_finished()
+        await self._conn_lost.wait()
 
     def connection_lost(self, exc: Optional[BaseException]) -> None:
         if hasattr(self, "_delegate"):
             self._delegate.connection_lost(exc)
 
         self._drained_event.set()
+
+        self._conn_lost.set()
 
 
 class HttpServerProtocolDelegate(BaseHttpProtocolDelegate):

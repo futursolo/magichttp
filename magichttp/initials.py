@@ -120,7 +120,7 @@ class HttpResponseInitial:
         self._headers = headers
 
     @property
-    def status_code(self) -> http.HTTPStatus:
+    def status_code(self) -> "http.HTTPStatus":
         return self._status_code
 
     @property

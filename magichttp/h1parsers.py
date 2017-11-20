@@ -99,11 +99,11 @@ class BaseH1Parser(abc.ABC):
             for header_line in initial_lines:
                 header_name, header_value = header_line.split(b":", 1)
 
+                headers.append((header_name.strip(), header_value.strip()))
+
         except ValueError as e:
             raise UnparsableHttpInitial(
                 "Unable to pack headers.") from e
-
-            headers.append((header_name.strip(), header_value.strip()))
 
         return magicdict.FrozenTolerantMagicDict(headers)
 

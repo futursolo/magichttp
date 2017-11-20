@@ -48,8 +48,6 @@ def parse_semicolon_header(
         else:
             header_parts.append((name, None))
 
-        header_parts.append((name, value))
-
     return magicdict.FrozenTolerantMagicDict(header_parts)
 
 

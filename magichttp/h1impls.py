@@ -84,7 +84,9 @@ class BaseH1StreamManager(
 
             self._transport.close()
 
-        elif not (self._read_ended and self._write_finished):
+            return
+
+        if not (self._read_ended and self._write_finished):
             return
 
         if self._last_stream:
@@ -141,6 +143,9 @@ class BaseH1StreamManager(
 
     def _mark_as_last_stream(self) -> None:
         self._marked_as_last_stream = True
+
+        if (self._reader and self._writer) is None:
+            self.abort()
 
     def resume_reading(self) -> None:
         if self._read_ended:
@@ -367,6 +372,13 @@ class H1ServerStreamManager(
 
         if self._reader is None:
             if not self._buf:
+                if self._parser.buf_ended:
+                    self._read_exc = readers.HttpStreamReadFinishedError()
+                    self._reader_ready.set()
+
+                    self._reader_ended = True
+                    self.abort()
+
                 return
 
             try:
@@ -383,6 +395,11 @@ class H1ServerStreamManager(
                 return
 
             if initial is None:
+                if self._parser.buf_ended:
+                    self.abort()
+
+                    return
+
                 if len(self._buf) > self._max_initial_size:
                     self.pause_reading()
 
@@ -446,16 +463,17 @@ class H1ServerStreamManager(
         if self._reader is None or self._writer is None:
             return True
 
-        remote_conn_header = self._reader.initial.headers[
-            b"connection"].lower()
+        remote_conn_header = self._reader.initial.headers.get(
+            b"connection", b"").lower()
 
-        local_conn_header = self._writer.initial.headers[b"connection"].lower()
+        local_conn_header = self._writer.initial.headers.get(
+            b"connection", b"").lower()
 
         if remote_conn_header == local_conn_header == b"keep-alive":
-            return True
+            return False
 
         else:
-            return False
+            return True
 
     async def read_request(self) -> readers.HttpRequestReader:
         await self._reader_ready.wait()
@@ -486,7 +504,7 @@ class H1ServerStreamManager(
         if self._aborted:
             raise writers.HttpStreamWriteAbortedError from self._conn_exc
 
-        initial, self._response_initial_bytes = \
+        initial, self._pending_initial_bytes = \
             self._composer.compose_response(
                 status_code=status_code, headers=headers,
                 req_initial=self._reader.initial if self._reader else None)
@@ -519,6 +537,9 @@ class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
         async with self._init_lock:
             if self._init_finished:
                 await self._stream_mgr.wait_finished()
+
+                for _ range(0, 2):
+                    await asyncio.sleep(0)
 
                 if self.finished():
                     raise readers.HttpStreamReadFinishedError \
@@ -556,8 +577,6 @@ class H1ClientStreamManager(
         self.__writer: Optional[writers.HttpRequestWriter] = None
         self.__reader: Optional[readers.HttpResponseReader] = None
 
-        self._data_arrived()
-
     @property
     def _parser(self) -> h1parsers.H1ResponseParser:
         return self.__parser
@@ -581,9 +600,10 @@ class H1ClientStreamManager(
         if self._aborted:
             return
 
-        if self._reader is None:
-            assert self._writer is not None
+        if self._writer is None:
+            return
 
+        if self._reader is None:
             if not self._buf:
                 return
 
@@ -663,16 +683,17 @@ class H1ClientStreamManager(
         if self._reader is None or self._writer is None:
             return True
 
-        remote_conn_header = self._reader.initial.headers[
-            b"connection"].lower()
+        remote_conn_header = self._reader.initial.headers.get(
+            b"connection", b"").lower()
 
-        local_conn_header = self._writer.initial.headers[b"connection"].lower()
+        local_conn_header = self._writer.initial.headers.get(
+            b"connection", b"").lower()
 
         if remote_conn_header == local_conn_header == b"keep-alive":
-            return True
+            return False
 
         else:
-            return False
+            return True
 
     def write_request(
         self, method: "constants.HttpRequestMethod", *,
@@ -686,7 +707,7 @@ class H1ClientStreamManager(
         if self._aborted:
             raise writers.HttpStreamWriteAbortedError from self._conn_exc
 
-        initial, self._request_initial_bytes = \
+        initial, self._pending_initial_bytes = \
             self._composer.compose_request(
                 method=method, uri=uri, authority=authority,
                 version=self._http_version,
@@ -697,6 +718,8 @@ class H1ClientStreamManager(
 
         self.__writer = writer
         self._writer_ready.set()
+
+        self._data_arrived()
 
         return writer
 
@@ -745,6 +768,9 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
         async with self._init_lock:
             if self._init_finished:
                 await self._stream_mgr.wait_finished()
+
+                for _ range(0, 2):
+                    await asyncio.sleep(0)
 
                 if self.finished():
                     raise writers.HttpStreamWriteAfterFinishedError \

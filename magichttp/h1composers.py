@@ -226,7 +226,7 @@ class H1ResponseComposer(BaseH1Composer):
 
             elif req_initial is None or \
                     b"connection" not in req_initial.headers.keys():
-                refined_headers[b"connection"] = b"Keep-Alive"
+                refined_headers[b"connection"] = b"Close"
 
             elif req_initial.headers[b"connection"].lower() != b"keep-alive":
                 refined_headers[b"connection"] = b"Close"
