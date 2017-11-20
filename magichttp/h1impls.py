@@ -41,16 +41,18 @@ _HeaderType = Union[
 class BaseH1StreamManager(
     readers.BaseHttpStreamReaderDelegate,
         writers.BaseHttpStreamWriterDelegate):
-    def __init__(self, __impl: "BaseH1Impl", buf: bytearray) -> None:
+    def __init__(
+        self, __impl: "BaseH1Impl", buf: bytearray,
+            max_initial_size: int) -> None:
         self._impl = __impl
 
         self._conn_exc: Optional[BaseException] = None
 
         self._buf = buf
-        self._transport = self._impl._transport
-        self._protocol = self._impl._protocol
+        self._protocol = self._impl.protocol
+        self._transport = self._protocol.transport
 
-        self._max_initial_size = self._protocol._MAX_INITIAL_SIZE
+        self._max_initial_size = max_initial_size
 
         self._reader_ready = asyncio.Event()
         self._read_exc: Optional[BaseException] = None
@@ -212,11 +214,14 @@ class BaseH1StreamManager(
 class BaseH1Impl(protocols.BaseHttpProtocolDelegate):
     def __init__(
         self, protocol: protocols.BaseHttpProtocol,
-            transport: asyncio.Transport) -> None:
+            max_initial_size: int) -> None:
         self._protocol = protocol
-        self._transport = transport
+        self._transport = self._protocol.transport
 
-        self._using_https = transport.get_extra_info("sslcontext") is not None
+        self._max_initial_size = max_initial_size
+
+        self._using_https = self._transport.get_extra_info(
+            "sslcontext") is not None
 
         self._buf = bytearray()
 
@@ -229,6 +234,10 @@ class BaseH1Impl(protocols.BaseHttpProtocolDelegate):
         self._conn_exc: Optional[BaseException] = None
 
         self._new_stream_mgr_fur: Optional["asyncio.Future[None]"] = None
+
+    @property
+    def protocol(self) -> protocols.BaseHttpProtocol:
+        return self._protocol
 
     @property
     @abc.abstractmethod
@@ -318,8 +327,10 @@ class BaseH1Impl(protocols.BaseHttpProtocolDelegate):
 class H1ServerStreamManager(
     BaseH1StreamManager, readers.HttpRequestReaderDelegate,
         writers.HttpResponseWriterDelegate):
-    def __init__(self, __impl: "H1ServerImpl", buf: bytearray) -> None:
-        super().__init__(__impl, buf)
+    def __init__(
+        self, __impl: "H1ServerImpl", buf: bytearray,
+            max_initial_size: int) -> None:
+        super().__init__(__impl, buf, max_initial_size)
 
         self.__parser = h1parsers.H1RequestParser(
             self._buf, using_https=self._impl._using_https)
@@ -492,10 +503,13 @@ class H1ServerStreamManager(
 class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
     def __init__(
         self, protocol: protocols.HttpServerProtocol,
-            transport: asyncio.Transport) -> None:
-        self.__stream_mgr = H1ServerStreamManager(self, self._buf)
+            max_initial_size: int) -> None:
+        super().__init__(protocol, max_initial_size)
 
-        super().__init__(protocol, transport)
+        self.__protocol = protocol
+
+        self.__stream_mgr = H1ServerStreamManager(
+            self, self._buf, max_initial_size)
 
     @property
     def _stream_mgr(self) -> H1ServerStreamManager:
@@ -510,7 +524,8 @@ class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
                     raise readers.HttpStreamReadFinishedError \
                         from self._conn_exc
 
-                self.__stream_mgr = H1ServerStreamManager(self, self._buf)
+                self.__stream_mgr = H1ServerStreamManager(
+                    self, self._buf, self._max_initial_size)
                 self._init_finished = False
                 if self._new_stream_mgr_fur and \
                         not self._new_stream_mgr_fur.done():
@@ -525,10 +540,13 @@ class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
 class H1ClientStreamManager(
     BaseH1StreamManager, writers.HttpRequestWriterDelegate,
         readers.HttpResponseReaderDelegate):
-    def __init__(self, __impl: "H1ClientImpl", buf: bytearray) -> None:
-        super().__init__(__impl, buf)
+    def __init__(
+        self, __impl: "H1ClientImpl", buf: bytearray,
+        max_initial_size: int,
+            http_version: "constants.HttpVersion") -> None:
+        super().__init__(__impl, buf, max_initial_size)
 
-        self._http_version = __impl._http_version
+        self._http_version = http_version
 
         self.__composer = h1composers.H1RequestComposer(
             self._impl._using_https)
@@ -704,12 +722,16 @@ class H1ClientStreamManager(
 class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
     def __init__(
         self, protocol: protocols.HttpClientProtocol,
-            transport: asyncio.Transport) -> None:
-        self._http_version = protocol._http_version
+        max_initial_size: int,
+            http_version: "constants.HttpVersion") -> None:
+        super().__init__(protocol, max_initial_size)
 
-        self.__stream_mgr = H1ClientStreamManager(self, self._buf)
+        self.__protocol = protocol
 
-        super().__init__(protocol, transport)
+        self._http_version = http_version
+
+        self.__stream_mgr = H1ClientStreamManager(
+            self, self._buf, max_initial_size, http_version)
 
     @property
     def _stream_mgr(self) -> H1ClientStreamManager:
@@ -728,7 +750,9 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
                     raise writers.HttpStreamWriteAfterFinishedError \
                         from self._conn_exc
 
-                self.__stream_mgr = H1ClientStreamManager(self, self._buf)
+                self.__stream_mgr = H1ClientStreamManager(
+                    self, self._buf, self._max_initial_size,
+                    self._http_version)
                 self._init_finished = False
                 if self._new_stream_mgr_fur and \
                         not self._new_stream_mgr_fur.done():

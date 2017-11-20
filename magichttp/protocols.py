@@ -46,8 +46,7 @@ _HeaderType = Union[
 class BaseHttpProtocolDelegate(abc.ABC):
     @abc.abstractmethod
     def __init__(
-        self, protocol: "BaseHttpProtocol",
-            transport: asyncio.Transport) -> None:
+            self, protocol: "BaseHttpProtocol", max_initial_size: int) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -109,7 +108,8 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
 
     @property
     def transport(self) -> asyncio.Transport:
-        assert self._transport is not None
+        if self._transport is None:
+            raise AttributeError("Transport is not ready.")
 
         return self._transport
 
@@ -156,7 +156,7 @@ class HttpServerProtocolDelegate(BaseHttpProtocolDelegate):
     @abc.abstractmethod
     def __init__(
         self, protocol: "HttpServerProtocol",
-            transport: asyncio.Transport) -> None:
+            max_initial_size: int) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -180,9 +180,10 @@ class HttpServerProtocol(
 
     def connection_made(  # type: ignore
             self, transport: asyncio.Transport) -> None:
-        self.__delegate = h1impls.H1ServerImpl(self, transport)
-
         super().connection_made(transport)
+
+        self.__delegate = h1impls.H1ServerImpl(
+            self, self._MAX_INITIAL_SIZE)
 
     def __aiter__(self) -> AsyncIterator[readers.HttpRequestReader]:
         return self
@@ -200,8 +201,8 @@ class HttpServerProtocol(
 class HttpClientProtocolDelegate(BaseHttpProtocolDelegate):
     @abc.abstractmethod
     def __init__(
-        self, protocol: "HttpClientProtocol",
-            transport: asyncio.Transport) -> None:
+        self, protocol: "HttpClientProtocol", max_initial_size: int,
+            http_version: constants.HttpVersion) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -234,9 +235,10 @@ class HttpClientProtocol(BaseHttpProtocol):
 
     def connection_made(  # type: ignore
             self, transport: asyncio.Transport) -> None:
-        self.__delegate = h1impls.H1ClientImpl(self, transport)
-
         super().connection_made(transport)
+
+        self.__delegate = h1impls.H1ClientImpl(
+            self, self._MAX_INITIAL_SIZE, self._http_version)
 
     async def write_request(
         self, method: constants.HttpRequestMethod, *,
