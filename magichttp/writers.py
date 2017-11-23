@@ -39,7 +39,15 @@ __all__ = [
     "HttpResponseWriter"]
 
 
-class HttpStreamWriteAfterFinishedError(EOFError):
+class BaseHttpStreamWriteException(Exception):
+    """
+    The base class of all the write exceptions.
+    """
+    pass
+
+
+class HttpStreamWriteAfterFinishedError(
+        EOFError, BaseHttpStreamWriteException):
     """
     Raised when :func:`BaseHttpStreamWriter.write()` is called after
     the stream is finished.
@@ -47,14 +55,14 @@ class HttpStreamWriteAfterFinishedError(EOFError):
     pass
 
 
-class HttpStreamWriteDuplicatedError(Exception):
+class HttpStreamWriteDuplicatedError(BaseHttpStreamWriteException):
     """
     Raised when the initial has been written twice.
     """
     pass
 
 
-class HttpStreamWriteAbortedError(Exception):
+class HttpStreamWriteAbortedError(BaseHttpStreamWriteException):
     """
     Raised when the stream is aborted before writing the end.
     """

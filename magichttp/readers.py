@@ -51,28 +51,35 @@ _HeaderType = Union[
     Iterable[Tuple[bytes, bytes]]]
 
 
-class HttpStreamInitialTooLargeError(Exception):
+class BaseHttpStreamReadException(Exception):
+    """
+    The base class of all the read exceptions.
+    """
+    pass
+
+
+class HttpStreamInitialTooLargeError(BaseHttpStreamReadException):
     """
     The Incoming Initial is too large.
     """
     pass
 
 
-class HttpStreamReadFinishedError(EOFError):
+class HttpStreamReadFinishedError(EOFError, BaseHttpStreamReadException):
     """
     Raised when the end of the stream is reached.
     """
     pass
 
 
-class HttpStreamReadAbortedError(Exception):
+class HttpStreamReadAbortedError(BaseHttpStreamReadException):
     """
     Raised when the stream is aborted before reaching the end.
     """
     pass
 
 
-class HttpStreamMaxBufferLengthReachedError(Exception):
+class HttpStreamMaxBufferLengthReachedError(BaseHttpStreamReadException):
     """
     Raised when the max length of the stream buffer is reached before
     the desired condition can be satisfied.
@@ -80,7 +87,7 @@ class HttpStreamMaxBufferLengthReachedError(Exception):
     pass
 
 
-class HttpStreamReadUnsatisfiableError(Exception):
+class HttpStreamReadUnsatisfiableError(BaseHttpStreamReadException):
     """
     Raised when the end of the stream is reached before
     the desired condition can be satisfied.
@@ -96,7 +103,7 @@ class HttpStreamSeparatorNotFoundError(HttpStreamReadUnsatisfiableError):
     pass
 
 
-class HttpStreamReceivedDataMalformedError(Exception):
+class HttpStreamReceivedDataMalformedError(BaseHttpStreamReadException):
     """
     Raised when the received data is unable to be parsed as http messages.
     """

@@ -26,8 +26,8 @@ import http
 import magicdict
 
 __all__ = [
-    "UnparsableHttpInitial",
-    "IncompletedHttpBody",
+    "UnparsableHttpMessage",
+    "IncompleteHttpMessage",
 
     "BaseH1Parser",
     "H1RequestParser",
@@ -40,11 +40,11 @@ _CHUNK_NOT_STARTED = -1
 _LAST_CHUNK = -2
 
 
-class UnparsableHttpInitial(ValueError):
+class UnparsableHttpMessage(ValueError):
     pass
 
 
-class IncompletedHttpBody(ValueError):
+class IncompleteHttpMessage(ValueError):
     pass
 
 
@@ -56,6 +56,7 @@ class BaseH1Parser(abc.ABC):
 
     def __init__(self, buf: bytearray, using_https: bool=False) -> None:
         self._buf = buf
+        self.buf_ended = False
 
         self._searched_len = 0
 
@@ -71,10 +72,6 @@ class BaseH1Parser(abc.ABC):
         self._body_chunk_crlf_dropped = True
 
         self._finished = False
-
-        self._incompleted_body = False
-
-        self.buf_ended = False
 
     def _split_initial(self) -> Optional[List[bytes]]:
         pos = self._buf.find(b"\r\n\r\n", self._searched_len)
@@ -102,7 +99,7 @@ class BaseH1Parser(abc.ABC):
                 headers.append((header_name.strip(), header_value.strip()))
 
         except ValueError as e:
-            raise UnparsableHttpInitial(
+            raise UnparsableHttpMessage(
                 "Unable to pack headers.") from e
 
         return magicdict.FrozenTolerantMagicDict(headers)
@@ -116,12 +113,12 @@ class BaseH1Parser(abc.ABC):
 
         if b"identity" in transfer_encoding_list:
             if len(transfer_encoding_list) > 1:
-                raise UnparsableHttpInitial(
+                raise UnparsableHttpMessage(
                     "Identity is not the only transfer encoding.")
 
         elif b"chunked" in transfer_encoding_list:
             if last_transfer_encoding != b"chunked":
-                raise UnparsableHttpInitial(
+                raise UnparsableHttpMessage(
                     "Chunked transfer encoding found, "
                     "but not at last.")
 
@@ -140,7 +137,7 @@ class BaseH1Parser(abc.ABC):
             self._body_len_left = int(content_length_str)
 
         except (ValueError, UnicodeDecodeError) as e:
-            raise UnparsableHttpInitial(
+            raise UnparsableHttpMessage(
                 "The value of Content-Length is not valid.") from e
 
     def _parse_chunked_body(
@@ -186,13 +183,13 @@ class BaseH1Parser(abc.ABC):
                 len_str = len_bytes.decode("latin-1")
 
             except UnicodeDecodeError as e:
-                raise UnparsableHttpInitial(
+                raise UnparsableHttpMessage(
                     "Unable to decode the chunk length as latin-1.") from e
             try:
                 self._body_chunk_len_left = int(len_str, 16)
 
             except ValueError as e:
-                raise UnparsableHttpInitial(
+                raise UnparsableHttpMessage(
                     "Chunk length is not a valid hex integer.") from e
 
             if self._body_chunk_len_left == 0:
@@ -272,7 +269,7 @@ class BaseH1Parser(abc.ABC):
                 current_chunk = maybe_current_chunk
 
                 if self.buf_ended and not current_chunk:
-                    raise IncompletedHttpBody(
+                    raise IncompleteHttpMessage(
                         "The Buf ended before the last chunk has been found.")
 
         elif self._body_len_left >= len(self._buf):
@@ -286,7 +283,7 @@ class BaseH1Parser(abc.ABC):
             del self._buf[0:self._body_len_left]
 
         if self.buf_ended and not current_chunk and self._body_len_left > 0:
-            raise IncompletedHttpBody(
+            raise IncompleteHttpMessage(
                 "Buffer ended before the body length can be reached.")
 
         return current_chunk
@@ -321,6 +318,10 @@ class H1RequestParser(BaseH1Parser):
         initial_lines = self._split_initial()
 
         if initial_lines is None:
+            if self.buf_ended:
+                raise IncompleteHttpMessage(
+                    "Buffer ended before an initial can be found.")
+
             return None
 
         try:
@@ -332,7 +333,7 @@ class H1RequestParser(BaseH1Parser):
             version = constants.HttpVersion(version_buf.upper().strip())
 
         except (IndexError, ValueError) as e:
-            raise UnparsableHttpInitial(
+            raise UnparsableHttpMessage(
                 "Unable to unpack the first line of the initial.") from e
 
         headers = self._parse_headers(initial_lines)
@@ -393,6 +394,10 @@ class H1ResponseParser(BaseH1Parser):
         initial_lines = self._split_initial()
 
         if initial_lines is None:
+            if self.buf_ended:
+                raise IncompleteHttpMessage(
+                    "Buffer ended before an initial can be found.")
+
             return None
 
         try:
@@ -409,7 +414,7 @@ class H1ResponseParser(BaseH1Parser):
             version = constants.HttpVersion(version_buf)
 
         except (IndexError, ValueError) as e:
-            raise UnparsableHttpInitial(
+            raise UnparsableHttpMessage(
                 "Unable to unpack the first line of the initial.") from e
 
         headers = self._parse_headers(initial_lines)
