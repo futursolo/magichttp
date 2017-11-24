@@ -91,26 +91,26 @@ class BaseH1Composer(abc.ABC):
     def _compose_initial_bytes(
         self, *first_line_args: bytes,
             headers: Optional[Mapping[bytes, bytes]]=None) -> bytes:
-        buf = [b" ".join(first_line_args)]
+        buf = [b" ".join(first_line_args), b"\r\n"]
 
         if headers:
             for key, value in headers.items():
-                buf.append(b"%s: %s" % (key, value))
+                buf.append(b"%s: %s\r\n" % (key, value))
 
-        buf.append(b"")
-        buf.append(b"")
+        buf.append(b"\r\n")
 
-        return b"\r\n".join(buf)
+        return b"".join(buf)
 
     def compose_body(
-            self, data: bytes, finished: bool=False) -> bytes:
+        self, data: Union[bytes, bytearray],
+            finished: bool=False) -> bytes:
         assert not self._finished, "Composers are not reusable."
         assert self._using_chunked_body is not None, \
             "You should compose the initial first."
 
         if self._using_chunked_body:
             if len(data) > 0:
-                data_len = f"{len(data):x}".encode()
+                data_len = f"{len(data):x}".encode("utf-8")
 
                 if finished:
                     self._finished = True
@@ -131,7 +131,7 @@ class BaseH1Composer(abc.ABC):
         if finished:
             self._finished = True
 
-        return data
+        return bytes(data)
 
 
 class H1RequestComposer(BaseH1Composer):

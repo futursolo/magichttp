@@ -192,26 +192,24 @@ class BaseH1StreamManager(
 
         self._impl.pause_reading()
 
-    def write_data(self, data: bytes, finished: bool=False) -> None:
+    def dump_buf(self, buf: bytearray, finished: bool=False) -> None:
         if self._write_finished:
             if self._write_exc:
                 raise self._write_exc
 
             raise writers.HttpStreamWriteAfterFinishedError
 
-        data = self._composer.compose_body(data, finished=finished)
+        data = self._composer.compose_body(buf, finished=finished)
 
         if self._pending_initial_bytes:
             data = self._pending_initial_bytes + data
             self._pending_initial_bytes = None
 
         self._transport.write(data)
+        buf.clear()  # type: ignore
 
         if finished:
             self._write_finished = True
-
-            if self._last_stream and self._transport.can_write_eof():
-                self._transport.write_eof()
 
             self._maybe_cleanup()
 
@@ -440,8 +438,6 @@ class H1ServerStreamManager(
                         exc = readers.HttpStreamInitialTooLargeError()
                         self._end_reading(exc)
 
-                        self._maybe_cleanup()
-
                     return
 
                 reader = readers.HttpRequestReader(self, initial=initial)
@@ -458,16 +454,12 @@ class H1ServerStreamManager(
                 if data is None:
                     self._end_reading(None)
 
-                    self._maybe_cleanup()
-
                     break
 
                 if not data:
                     if len(self._buf) > self._max_initial_size:
                         exc = readers.HttpStreamReceivedDataMalformedError()
                         self._end_reading(exc)
-
-                        self._maybe_cleanup()
 
                     break
 
@@ -479,8 +471,6 @@ class H1ServerStreamManager(
 
             self._end_reading(exc)
 
-            self._maybe_cleanup()
-
         except h1parsers.IncompleteHttpMessage as e:
             if self._conn_exc:
                 e.__cause__ = self._conn_exc
@@ -490,8 +480,6 @@ class H1ServerStreamManager(
 
             self._end_reading(exc)
 
-            self._maybe_cleanup()
-
     @property
     def _last_stream(self) -> Optional[bool]:
         if not self.finished():
@@ -500,7 +488,13 @@ class H1ServerStreamManager(
         if self._marked_as_last_stream:
             return True
 
-        if self._reader is None or self._writer is None:
+        if (self._reader and self._writer) is None:
+            return True
+
+        if (self._read_exc or self._write_exc) is not None:
+            return True
+
+        if self._writer.initial.status_code >= 400:
             return True
 
         remote_conn_header = self._reader.initial.headers.get(
@@ -651,8 +645,6 @@ class H1ClientStreamManager(
                         exc = readers.HttpStreamInitialTooLargeError()
                         self._end_reading(exc)
 
-                        self._maybe_cleanup()
-
                     return
 
                 reader = readers.HttpResponseReader(
@@ -670,16 +662,12 @@ class H1ClientStreamManager(
                 if data is None:
                     self._end_reading(None)
 
-                    self._maybe_cleanup()
-
                     break
 
                 if not data:
                     if len(self._buf) > self._max_initial_size:
                         exc = readers.HttpStreamReceivedDataMalformedError()
                         self._end_reading(exc)
-
-                        self._maybe_cleanup()
 
                     break
 
@@ -691,8 +679,6 @@ class H1ClientStreamManager(
 
             self._end_reading(exc)
 
-            self._maybe_cleanup()
-
         except h1parsers.IncompleteHttpMessage as e:
             if self._conn_exc:
                 e.__cause__ = self._conn_exc
@@ -702,8 +688,6 @@ class H1ClientStreamManager(
 
             self._end_reading(exc)
 
-            self._maybe_cleanup()
-
     @property
     def _last_stream(self) -> Optional[bool]:
         if not self.finished():
@@ -712,7 +696,13 @@ class H1ClientStreamManager(
         if self._marked_as_last_stream:
             return True
 
-        if self._reader is None or self._writer is None:
+        if (self._reader and self._writer) is None:
+            return True
+
+        if (self._read_exc or self._write_exc) is not None:
+            return True
+
+        if self._reader.initial.status_code >= 400:
             return True
 
         remote_conn_header = self._reader.initial.headers.get(

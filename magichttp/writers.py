@@ -71,7 +71,7 @@ class HttpStreamWriteAbortedError(BaseHttpStreamWriteException):
 
 class BaseHttpStreamWriterDelegate(abc.ABC):
     @abc.abstractmethod
-    def write_data(self, data: bytes, finished: bool=False) -> None:
+    def dump_buf(self, buf: bytearray, finished: bool=False) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -121,11 +121,8 @@ class BaseHttpStreamWriter(abc.ABC):
 
     def _empty_buf(self, finished: bool=False) -> None:
         if self.buf_len() >= 0:
-            data = bytes(self._buf)
-            self._buf.clear()  # type: ignore
-
             try:
-                self._delegate.write_data(data, finished=finished)
+                self._delegate.dump_buf(self._buf, finished=finished)
 
             except Exception as e:
                 self._finished.set()
