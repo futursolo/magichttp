@@ -488,7 +488,7 @@ class H1ServerStreamManager(
         if self._marked_as_last_stream:
             return True
 
-        if (self._reader and self._writer) is None:
+        if self._reader is None or self._writer is None:
             return True
 
         if (self._read_exc or self._write_exc) is not None:
@@ -696,7 +696,7 @@ class H1ClientStreamManager(
         if self._marked_as_last_stream:
             return True
 
-        if (self._reader and self._writer) is None:
+        if self._reader is None or self._writer is None:
             return True
 
         if (self._read_exc or self._write_exc) is not None:
