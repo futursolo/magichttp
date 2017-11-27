@@ -15,7 +15,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from typing import Union, Mapping, Iterable, Tuple, Optional
+from typing import Union, Mapping, Iterable, Tuple, Optional, Any
 
 from . import constants
 
@@ -29,13 +29,15 @@ if typing.TYPE_CHECKING:
     from . import writers
 
 __all__ = [
-    "InitialTooLargeError",
+    "EntityTooLargeError",
+    "RequestInitialTooLargeError",
     "ReadFinishedError",
     "ReadAbortedError",
     "MaxBufferLengthReachedError",
     "ReadUnsatisfiableError",
     "SeparatorNotFoundError",
     "ReceivedDataMalformedError",
+    "RequestInitialMalformedError",
 
     "BaseHttpStreamReader",
     "HttpRequestReader",
@@ -53,11 +55,34 @@ class BaseReadException(Exception):
     pass
 
 
-class InitialTooLargeError(BaseReadException):
+class EntityTooLargeError(BaseReadException):
     """
-    The Incoming Initial is too large.
+    The incoming entity is too large.
     """
     pass
+
+
+class RequestInitialTooLargeError(EntityTooLargeError):
+    """
+    The incoming initial is too large.
+    """
+    def __init__(
+        self, __delegate: "HttpRequestReaderDelegate",
+            *args: Any) -> None:
+        super().__init__(*args)
+
+        self._delegate = __delegate
+
+    def write_response(
+        self, status_code: Union[
+            int, http.HTTPStatus
+        ]=http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE, *,
+        headers: Optional[_HeaderType]=None
+            ) -> "writers.HttpResponseWriter":
+
+        return self._delegate.write_response(
+            http.HTTPStatus(status_code),
+            headers=headers)
 
 
 class ReadFinishedError(EOFError, BaseReadException):
@@ -103,6 +128,28 @@ class ReceivedDataMalformedError(BaseReadException):
     Raised when the received data is unable to be parsed as http messages.
     """
     pass
+
+
+class RequestInitialMalformedError(ReceivedDataMalformedError):
+    """
+    The request initial is malformed.
+    """
+    def __init__(
+        self, __delegate: "HttpRequestReaderDelegate",
+            *args: Any) -> None:
+        super().__init__(*args)
+
+        self._delegate = __delegate
+
+    def write_response(
+        self, status_code: Union[
+            int, http.HTTPStatus]=http.HTTPStatus.BAD_REQUEST, *,
+        headers: Optional[_HeaderType]=None
+            ) -> "writers.HttpResponseWriter":
+
+        return self._delegate.write_response(
+            http.HTTPStatus(status_code),
+            headers=headers)
 
 
 class BaseHttpStreamReaderDelegate(abc.ABC):

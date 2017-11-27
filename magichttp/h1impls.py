@@ -423,7 +423,7 @@ class H1ServerStreamManager(
                     if len(self._buf) > self._max_initial_size:
                         self.pause_reading()
 
-                        exc = readers.InitialTooLargeError()
+                        exc = readers.EntityTooLargeError()
                         self._end_reading(exc)
 
                     return
@@ -502,7 +502,14 @@ class H1ServerStreamManager(
 
         if self._reader is None:
             if self._read_exc:
-                raise self._read_exc
+                try:
+                    raise self._read_exc
+
+                except readers.EntityTooLargeError as e:
+                    raise readers.RequestInitialTooLargeError(self) from e
+
+                except readers.ReceivedDataMalformedError as e:
+                    raise readers.RequestInitialMalformedError(self) from e
 
             raise readers.ReadFinishedError
 
@@ -637,7 +644,7 @@ class H1ClientStreamManager(
                     if len(self._buf) > self._max_initial_size:
                         self.pause_reading()
 
-                        exc = readers.InitialTooLargeError()
+                        exc = readers.EntityTooLargeError()
                         self._end_reading(exc)
 
                     return
