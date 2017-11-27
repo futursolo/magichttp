@@ -519,7 +519,8 @@ class H1ServerStreamManager(
         self, status_code: "http.HTTPStatus", *,
         headers: Optional[_HeaderType]
             ) -> writers.HttpResponseWriter:
-        assert self._writer is None, "You cannot write response twice."
+        if self._writer is not None:
+            raise RuntimeError("You cannot write response twice.")
 
         if self._write_exc:
             raise self._write_exc
@@ -724,7 +725,8 @@ class H1ClientStreamManager(
         uri: bytes, authority: Optional[bytes],
         scheme: Optional[bytes],
             headers: Optional[_HeaderType]) -> writers.HttpRequestWriter:
-        assert self._writer is None, "You cannot write response twice."
+        if self._writer is not None:
+            raise RuntimeError("You cannot write response twice.")
 
         if self._write_exc:
             raise self._write_exc
