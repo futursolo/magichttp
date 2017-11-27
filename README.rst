@@ -11,8 +11,9 @@ implementation.
 
 Under Development
 =================
-Magichttp is still under heavy development(Pre-Alpha) and thus its API may
-change without a notice or transition.
+Magichttp is still under heavy development(Alpha). It may have unknown bugs.
+
+Use at your own risk.
 
 License
 -------
