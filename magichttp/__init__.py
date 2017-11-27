@@ -19,8 +19,6 @@ from . import h1impls as _h1impls  # Resolve Import Conflicts.
 
 from ._version import *
 from .constants import *
-from .h1composers import *
-from .h1parsers import *
 from .httputils import *
 from .initials import *
 from .protocols import *
@@ -29,14 +27,11 @@ from .writers import *
 
 from . import _version
 from . import constants
-from . import h1composers
-from . import h1parsers
 from . import httputils
 from . import initials
 from . import protocols
 from . import readers
 from . import writers
 
-__all__ = _version.__all__ + constants.__all__ + h1composers.__all__ + \
-    h1parsers.__all__ + httputils.__all__ + initials.__all__ + \
-    protocols.__all__ + readers.__all__ + writers.__all__
+__all__ = _version.__all__ + constants.__all__ + httputils.__all__ + \
+    initials.__all__ + protocols.__all__ + readers.__all__ + writers.__all__

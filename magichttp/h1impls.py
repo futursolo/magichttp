@@ -53,19 +53,18 @@ class BaseH1StreamManager(
         self._max_initial_size = max_initial_size
 
         self._reader_ready = asyncio.Event()
-        self._read_exc: Optional[readers.BaseHttpStreamReadException] = None
+        self._read_exc: Optional[readers.BaseReadException] = None
         self._read_ended = False
 
         self._writer_ready = asyncio.Event()
-        self._write_exc: Optional[writers.BaseHttpStreamWriteException] = None
+        self._write_exc: Optional[writers.BaseWriteException] = None
         self._write_finished = False
 
         self._conn_exc: Optional[BaseException] = None
 
         self._marked_as_last_stream = False
 
-    def _end_reading(self, exc: Optional[
-            readers.BaseHttpStreamReadException]) -> None:
+    def _end_reading(self, exc: Optional[readers.BaseReadException]) -> None:
         if self._read_ended:
             return
 
@@ -79,8 +78,7 @@ class BaseH1StreamManager(
 
         self._maybe_cleanup()
 
-    def _tear_writing(self, exc: Optional[
-            writers.BaseHttpStreamWriteException]) -> None:
+    def _tear_writing(self, exc: Optional[writers.BaseWriteException]) -> None:
         if self._write_finished:
             return
 
@@ -94,7 +92,7 @@ class BaseH1StreamManager(
     def _maybe_cleanup(self, *, force_close: bool=False) -> None:
         if force_close:
             if not self._read_ended:
-                read_exc = readers.HttpStreamReadAbortedError()
+                read_exc = readers.ReadAbortedError()
 
                 if self._conn_exc:
                     read_exc.__cause__ = self._conn_exc
@@ -102,7 +100,7 @@ class BaseH1StreamManager(
                 self._end_reading(read_exc)
 
             if not self._write_finished:
-                write_exc = writers.HttpStreamWriteAbortedError()
+                write_exc = writers.WriteAbortedError()
 
                 if self._conn_exc:
                     write_exc.__cause__ = self._conn_exc
@@ -195,7 +193,7 @@ class BaseH1StreamManager(
             if self._write_exc:
                 raise self._write_exc
 
-            raise writers.HttpStreamWriteAfterFinishedError
+            raise writers.WriteAfterFinishedError
 
         data = self._composer.compose_body(data, finished=finished)
 
@@ -203,7 +201,7 @@ class BaseH1StreamManager(
             self._transport.write(data)
 
         except Exception as e:
-            exc = writers.HttpStreamWriteAbortedError()
+            exc = writers.WriteAbortedError()
             exc.__cause__ = e
             self._tear_writing(exc)
 
@@ -410,7 +408,7 @@ class H1ServerStreamManager(
         if self._read_ended:
             return
 
-        exc: readers.BaseHttpStreamReadException
+        exc: readers.BaseReadException
         try:
             if self._reader is None:
                 if not self._buf:
@@ -423,14 +421,14 @@ class H1ServerStreamManager(
 
                 if initial is None:
                     if self._parser.buf_ended:
-                        self._end_reading(readers.HttpStreamReadAbortedError())
+                        self._end_reading(readers.ReadAbortedError())
 
                         return
 
                     if len(self._buf) > self._max_initial_size:
                         self.pause_reading()
 
-                        exc = readers.HttpStreamInitialTooLargeError()
+                        exc = readers.InitialTooLargeError()
                         self._end_reading(exc)
 
                     return
@@ -453,7 +451,7 @@ class H1ServerStreamManager(
 
                 if not data:
                     if len(self._buf) > self._max_initial_size:
-                        exc = readers.HttpStreamReceivedDataMalformedError()
+                        exc = readers.ReceivedDataMalformedError()
                         self._end_reading(exc)
 
                     break
@@ -461,7 +459,7 @@ class H1ServerStreamManager(
                 reader._append_data(data)
 
         except h1parsers.UnparsableHttpMessage as e:
-            exc = readers.HttpStreamReceivedDataMalformedError()
+            exc = readers.ReceivedDataMalformedError()
             exc.__cause__ = e
 
             self._end_reading(exc)
@@ -470,7 +468,7 @@ class H1ServerStreamManager(
             if self._conn_exc:
                 e.__cause__ = self._conn_exc
 
-            exc = readers.HttpStreamReadAbortedError()
+            exc = readers.ReadAbortedError()
             exc.__cause__ = e
 
             self._end_reading(exc)
@@ -511,7 +509,7 @@ class H1ServerStreamManager(
             if self._read_exc:
                 raise self._read_exc
 
-            raise readers.HttpStreamReadFinishedError
+            raise readers.ReadFinishedError
 
         return self._reader
 
@@ -519,9 +517,7 @@ class H1ServerStreamManager(
         self, status_code: "http.HTTPStatus", *,
         headers: Optional[_HeaderType]
             ) -> writers.HttpResponseWriter:
-        if self._writer is not None:
-            raise writers.HttpStreamWriteDuplicatedError(
-                "You cannot write response twice.")
+        assert self._writer is None, "You cannot write response twice."
 
         if self._write_exc:
             raise self._write_exc
@@ -535,7 +531,7 @@ class H1ServerStreamManager(
             self._transport.write(initial_bytes)
 
         except Exception as e:
-            exc = writers.HttpStreamWriteAbortedError()
+            exc = writers.WriteAbortedError()
             exc.__cause__ = e
             self._tear_writing(exc)
 
@@ -571,8 +567,7 @@ class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
                 await self._stream_mgr.wait_finished()
 
                 if self.finished():
-                    raise readers.HttpStreamReadFinishedError \
-                        from self._conn_exc
+                    raise readers.ReadFinishedError from self._conn_exc
 
                 self.resume_reading()
 
@@ -631,14 +626,14 @@ class H1ClientStreamManager(
         if self._writer is None:
             if self._parser.buf_ended:
                 if self._buf:
-                    self._end_reading(readers.HttpStreamReadAbortedError())
+                    self._end_reading(readers.ReadAbortedError())
 
                 else:
-                    self._end_reading(readers.HttpStreamReadFinishedError())
+                    self._end_reading(readers.ReadFinishedError())
 
             return
 
-        exc: readers.BaseHttpStreamReadException
+        exc: readers.BaseReadException
         try:
             if self._reader is None:
                 initial = self._parser.parse_response(self._writer.initial)
@@ -647,7 +642,7 @@ class H1ClientStreamManager(
                     if len(self._buf) > self._max_initial_size:
                         self.pause_reading()
 
-                        exc = readers.HttpStreamInitialTooLargeError()
+                        exc = readers.InitialTooLargeError()
                         self._end_reading(exc)
 
                     return
@@ -671,7 +666,7 @@ class H1ClientStreamManager(
 
                 if not data:
                     if len(self._buf) > self._max_initial_size:
-                        exc = readers.HttpStreamReceivedDataMalformedError()
+                        exc = readers.ReceivedDataMalformedError()
                         self._end_reading(exc)
 
                     break
@@ -679,7 +674,7 @@ class H1ClientStreamManager(
                 reader._append_data(data)
 
         except h1parsers.UnparsableHttpMessage as e:
-            exc = readers.HttpStreamReceivedDataMalformedError()
+            exc = readers.ReceivedDataMalformedError()
             exc.__cause__ = e
 
             self._end_reading(exc)
@@ -688,7 +683,7 @@ class H1ClientStreamManager(
             if self._conn_exc:
                 e.__cause__ = self._conn_exc
 
-            exc = readers.HttpStreamReadAbortedError()
+            exc = readers.ReadAbortedError()
             exc.__cause__ = e
 
             self._end_reading(exc)
@@ -727,9 +722,7 @@ class H1ClientStreamManager(
         uri: bytes, authority: Optional[bytes],
         scheme: Optional[bytes],
             headers: Optional[_HeaderType]) -> writers.HttpRequestWriter:
-        if self._writer is not None:
-            raise writers.HttpStreamWriteDuplicatedError(
-                "You cannot write response twice.")
+        assert self._writer is None, "You cannot write response twice."
 
         if self._write_exc:
             raise self._write_exc
@@ -744,7 +737,7 @@ class H1ClientStreamManager(
             self._transport.write(initial_bytes)
 
         except Exception as e:
-            exc = writers.HttpStreamWriteAbortedError()
+            exc = writers.WriteAbortedError()
             exc.__cause__ = e
             self._tear_writing(exc)
 
@@ -767,7 +760,7 @@ class H1ClientStreamManager(
             if self._read_exc:
                 raise self._read_exc
 
-            raise readers.HttpStreamReadFinishedError
+            raise readers.ReadFinishedError
 
         return self._reader
 
@@ -800,8 +793,7 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
                 await self._stream_mgr.wait_finished()
 
                 if self.finished():
-                    raise writers.HttpStreamWriteAfterFinishedError \
-                        from self._conn_exc
+                    raise writers.WriteAfterFinishedError from self._conn_exc
 
                 self.__stream_mgr = H1ClientStreamManager(
                     self, self._buf, self._max_initial_size,

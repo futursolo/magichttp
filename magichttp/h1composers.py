@@ -30,13 +30,6 @@ import typing
 if typing.TYPE_CHECKING:
     import http
 
-__all__ = [
-    "IncomposableHttpInitial",
-
-    "BaseH1Composer",
-    "H1RequestComposer",
-    "H1ResponseComposer"]
-
 _SELF_IDENTIFIER = f"magichttp/{_version.__version__}".encode()
 
 _HeaderType = Union[

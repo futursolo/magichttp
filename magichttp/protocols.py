@@ -29,13 +29,8 @@ if typing.TYPE_CHECKING:
     from . import writers
 
 __all__ = [
-    "BaseHttpProtocolDelegate",
     "BaseHttpProtocol",
-
-    "HttpServerProtocolDelegate",
     "HttpServerProtocol",
-
-    "HttpClientProtocolDelegate",
     "HttpClientProtocol"]
 
 _HeaderType = Union[
@@ -195,9 +190,7 @@ class HttpServerProtocol(
         try:
             return await self._delegate.read_request()
 
-        except (
-                readers.HttpStreamReadFinishedError,
-                readers.HttpStreamReadAbortedError) as e:
+        except (readers.ReadFinishedError, readers.ReadAbortedError) as e:
             raise StopAsyncIteration from e
 
 

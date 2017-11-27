@@ -26,28 +26,22 @@ if typing.TYPE_CHECKING:
     from . import readers
 
 __all__ = [
-    "HttpStreamWriteAfterFinishedError",
-    "HttpStreamWriteAbortedError",
+    "WriteAfterFinishedError",
+    "WriteAbortedError",
 
-    "BaseHttpStreamWriterDelegate",
     "BaseHttpStreamWriter",
-
-    "HttpRequestWriterDelegate",
     "HttpRequestWriter",
-
-    "HttpResponseWriterDelegate",
     "HttpResponseWriter"]
 
 
-class BaseHttpStreamWriteException(Exception):
+class BaseWriteException(Exception):
     """
     The base class of all the write exceptions.
     """
     pass
 
 
-class HttpStreamWriteAfterFinishedError(
-        EOFError, BaseHttpStreamWriteException):
+class WriteAfterFinishedError(EOFError, BaseWriteException):
     """
     Raised when :func:`BaseHttpStreamWriter.write()` is called after
     the stream is finished.
@@ -55,14 +49,7 @@ class HttpStreamWriteAfterFinishedError(
     pass
 
 
-class HttpStreamWriteDuplicatedError(BaseHttpStreamWriteException):
-    """
-    Raised when the initial has been written twice.
-    """
-    pass
-
-
-class HttpStreamWriteAbortedError(BaseHttpStreamWriteException):
+class WriteAbortedError(BaseWriteException):
     """
     Raised when the stream is aborted before writing the end.
     """
@@ -94,7 +81,7 @@ class BaseHttpStreamWriter(abc.ABC):
         self._flush_lock = asyncio.Lock()
 
         self._finished = asyncio.Event()
-        self._exc: Optional[BaseHttpStreamWriteException] = None
+        self._exc: Optional[BaseWriteException] = None
 
     def write(self, data: bytes) -> None:
         """
@@ -104,7 +91,7 @@ class BaseHttpStreamWriter(abc.ABC):
             if self._exc:
                 raise self._exc
 
-            raise HttpStreamWriteAfterFinishedError
+            raise WriteAfterFinishedError
 
         if not data:
             return
@@ -112,7 +99,7 @@ class BaseHttpStreamWriter(abc.ABC):
         try:
             self._delegate.write_data(data, finished=False)
 
-        except BaseHttpStreamWriteException as e:
+        except BaseWriteException as e:
             self._finished.set()
             if self._exc is None:
                 self._exc = e
@@ -137,7 +124,7 @@ class BaseHttpStreamWriter(abc.ABC):
             except asyncio.CancelledError:
                 raise
 
-            except BaseHttpStreamWriteException as e:
+            except BaseWriteException as e:
                 self._finished.set()
                 if self._exc is None:
                     self._exc = e
@@ -152,18 +139,22 @@ class BaseHttpStreamWriter(abc.ABC):
             if self._exc:
                 raise self._exc
 
-            return
+            if data:
+                raise WriteAfterFinishedError
 
-        self._finished.set()
+            return
 
         try:
             self._delegate.write_data(data, finished=True)
 
-        except BaseHttpStreamWriteException as e:
+        except BaseWriteException as e:
             if self._exc is None:
                 self._exc = e
 
             raise
+
+        finally:
+            self._finished.set()
 
     def finished(self) -> bool:
         """

@@ -29,20 +29,16 @@ if typing.TYPE_CHECKING:
     from . import writers
 
 __all__ = [
-    "HttpStreamReadFinishedError",
-    "HttpStreamReadAbortedError",
-    "HttpStreamMaxBufferLengthReachedError",
-    "HttpStreamReadUnsatisfiableError",
-    "HttpStreamSeparatorNotFoundError",
-    "HttpStreamReceivedDataMalformedError",
+    "InitialTooLargeError",
+    "ReadFinishedError",
+    "ReadAbortedError",
+    "MaxBufferLengthReachedError",
+    "ReadUnsatisfiableError",
+    "SeparatorNotFoundError",
+    "ReceivedDataMalformedError",
 
-    "BaseHttpStreamReaderDelegate",
     "BaseHttpStreamReader",
-
-    "HttpRequestReaderDelegate",
     "HttpRequestReader",
-
-    "HttpResponseReaderDelegate",
     "HttpResponseReader"]
 
 _HeaderType = Union[
@@ -50,35 +46,35 @@ _HeaderType = Union[
     Iterable[Tuple[bytes, bytes]]]
 
 
-class BaseHttpStreamReadException(Exception):
+class BaseReadException(Exception):
     """
     The base class of all the read exceptions.
     """
     pass
 
 
-class HttpStreamInitialTooLargeError(BaseHttpStreamReadException):
+class InitialTooLargeError(BaseReadException):
     """
     The Incoming Initial is too large.
     """
     pass
 
 
-class HttpStreamReadFinishedError(EOFError, BaseHttpStreamReadException):
+class ReadFinishedError(EOFError, BaseReadException):
     """
     Raised when the end of the stream is reached.
     """
     pass
 
 
-class HttpStreamReadAbortedError(BaseHttpStreamReadException):
+class ReadAbortedError(BaseReadException):
     """
     Raised when the stream is aborted before reaching the end.
     """
     pass
 
 
-class HttpStreamMaxBufferLengthReachedError(BaseHttpStreamReadException):
+class MaxBufferLengthReachedError(BaseReadException):
     """
     Raised when the max length of the stream buffer is reached before
     the desired condition can be satisfied.
@@ -86,7 +82,7 @@ class HttpStreamMaxBufferLengthReachedError(BaseHttpStreamReadException):
     pass
 
 
-class HttpStreamReadUnsatisfiableError(BaseHttpStreamReadException):
+class ReadUnsatisfiableError(BaseReadException):
     """
     Raised when the end of the stream is reached before
     the desired condition can be satisfied.
@@ -94,7 +90,7 @@ class HttpStreamReadUnsatisfiableError(BaseHttpStreamReadException):
     pass
 
 
-class HttpStreamSeparatorNotFoundError(HttpStreamReadUnsatisfiableError):
+class SeparatorNotFoundError(ReadUnsatisfiableError):
     """
     Raised when the end of the stream is reached before
     the requested separator can be found.
@@ -102,7 +98,7 @@ class HttpStreamSeparatorNotFoundError(HttpStreamReadUnsatisfiableError):
     pass
 
 
-class HttpStreamReceivedDataMalformedError(BaseHttpStreamReadException):
+class ReceivedDataMalformedError(BaseReadException):
     """
     Raised when the received data is unable to be parsed as http messages.
     """
@@ -140,7 +136,7 @@ class BaseHttpStreamReader(abc.ABC):
         self._read_lock = asyncio.Lock()
 
         self._end_appended = asyncio.Event()
-        self._exc: Optional[BaseException] = None
+        self._exc: Optional[BaseReadException] = None
 
         self._max_buf_len_changed_fur: Optional["asyncio.Future[None]"] = \
             asyncio.Future()
@@ -173,7 +169,7 @@ class BaseHttpStreamReader(abc.ABC):
                 not self._wait_for_data_fur.done():
             self._wait_for_data_fur.set_result(None)
 
-    def _append_end(self, exc: Optional[BaseException]) -> None:
+    def _append_end(self, exc: Optional[BaseReadException]) -> None:
         if self._end_appended.is_set():
             return
 
@@ -190,7 +186,7 @@ class BaseHttpStreamReader(abc.ABC):
             if self._exc is not None:
                 raise self._exc
 
-            raise HttpStreamReadFinishedError
+            raise ReadFinishedError
 
         former_buf_len = self.buf_len()
 
@@ -214,7 +210,7 @@ class BaseHttpStreamReader(abc.ABC):
                 if self._exc is not None:
                     raise self._exc
 
-                raise HttpStreamReadFinishedError
+                raise ReadFinishedError
 
         except asyncio.CancelledError:
             raise
@@ -231,7 +227,7 @@ class BaseHttpStreamReader(abc.ABC):
         raise an :class:`HttpStreamReadUnsatisfiableError`.
 
         When :func:`.finished()` is `True`, this method will raise any errors
-        occurred during the read or an :class:`HttpStreamReadFinishedError`.
+        occurred during the read or an :class:`ReadFinishedError`.
         """
         if n == 0:
             return b""
@@ -241,7 +237,7 @@ class BaseHttpStreamReader(abc.ABC):
                 if self._exc:
                     raise self._exc
 
-                raise HttpStreamReadFinishedError
+                raise ReadFinishedError
 
             if exactly:
                 if n < 0:
@@ -257,12 +253,12 @@ class BaseHttpStreamReader(abc.ABC):
                         raise
 
                     except Exception as e:
-                        raise HttpStreamReadUnsatisfiableError from e
+                        raise ReadUnsatisfiableError from e
 
             elif n < 0:
                 while True:
                     if self.buf_len() > self.max_buf_len:
-                        raise HttpStreamMaxBufferLengthReachedError
+                        raise MaxBufferLengthReachedError
 
                     try:
                         await self._wait_for_data()
@@ -292,19 +288,19 @@ class BaseHttpStreamReader(abc.ABC):
 
         When the max size of the buffer has been reached,
         and the separator is not found, this method will raise
-        an :class:`HttpStreamMaxBufferSizeReachedError`.
+        an :class:`MaxBufferSizeReachedError`.
         Similarly, if the end has been reached before found the separator
-        it will raise an `HttpStreamSeparatorNotFoundError`.
+        it will raise an `SeparatorNotFoundError`.
 
         When :func:`.finished()` is `True`, this method will raise any errors
-        occurred during the read or an :class:`HttpStreamReadFinishedError`.
+        occurred during the read or an :class:`ReadFinishedError`.
         """
         async with self._read_lock:
             if self.finished():
                 if self._exc:
                     raise self._exc
 
-                raise HttpStreamReadFinishedError
+                raise ReadFinishedError
 
             start_pos = 0
 
@@ -313,7 +309,7 @@ class BaseHttpStreamReader(abc.ABC):
 
                 if separator_pos == -1:
                     if self.buf_len() > self.max_buf_len:
-                        raise HttpStreamMaxBufferLengthReachedError
+                        raise MaxBufferLengthReachedError
 
                     else:
                         try:
@@ -321,7 +317,7 @@ class BaseHttpStreamReader(abc.ABC):
 
                         except Exception as e:
                             if self.buf_len() > 0:
-                                raise HttpStreamSeparatorNotFoundError from e
+                                raise SeparatorNotFoundError from e
 
                             else:
                                 raise
