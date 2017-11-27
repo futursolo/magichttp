@@ -420,11 +420,6 @@ class H1ServerStreamManager(
                 initial = self._parser.parse_request()
 
                 if initial is None:
-                    if self._parser.buf_ended:
-                        self._end_reading(readers.ReadAbortedError())
-
-                        return
-
                     if len(self._buf) > self._max_initial_size:
                         self.pause_reading()
 
