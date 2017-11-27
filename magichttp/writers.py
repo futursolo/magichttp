@@ -71,7 +71,7 @@ class HttpStreamWriteAbortedError(BaseHttpStreamWriteException):
 
 class BaseHttpStreamWriterDelegate(abc.ABC):
     @abc.abstractmethod
-    def dump_buf(self, buf: bytearray, finished: bool=False) -> None:
+    def write_data(self, data: bytes, finished: bool=False) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -85,51 +85,16 @@ class BaseHttpStreamWriterDelegate(abc.ABC):
 
 class BaseHttpStreamWriter(abc.ABC):
     __slots__ = (
-        "_delegate", "__delegate", "_buf", "_flush_lock", "_finished", "_exc",
-        "_max_buf_len_changed", "_initial", "_reader")
+        "_delegate", "__delegate", "_flush_lock", "_finished", "_exc",
+        "_initial", "_reader")
 
     def __init__(self, __delegate: BaseHttpStreamWriterDelegate) -> None:
         self._delegate = __delegate
-        self._max_buf_len = 4 * 1024 * 1024  # 4M
-
-        self._buf = bytearray()
 
         self._flush_lock = asyncio.Lock()
 
         self._finished = asyncio.Event()
-        self._exc: Optional[BaseException] = None
-
-        self._max_buf_len_changed: "asyncio.Future[None]" = asyncio.Future()
-
-    def buf_len(self) -> int:
-        """
-        Return the length of the internal buffer.
-        """
-        return len(self._buf)
-
-    @property
-    def max_buf_len(self) -> int:
-        return self._max_buf_len
-
-    @max_buf_len.setter
-    def max_buf_len(self, new_max_buf_len: int) -> None:
-        self._max_buf_len = new_max_buf_len
-
-        if not self._max_buf_len_changed.done():
-            self._max_buf_len_changed.set_result(None)
-            self._max_buf_len_changed = asyncio.Future()
-
-    def _empty_buf(self, finished: bool=False) -> None:
-        if self.buf_len() >= 0:
-            try:
-                self._delegate.dump_buf(self._buf, finished=finished)
-
-            except Exception as e:
-                self._finished.set()
-                if self._exc is None:
-                    self._exc = e
-
-                raise
+        self._exc: Optional[BaseHttpStreamWriteException] = None
 
     def write(self, data: bytes) -> None:
         """
@@ -141,10 +106,18 @@ class BaseHttpStreamWriter(abc.ABC):
 
             raise HttpStreamWriteAfterFinishedError
 
-        self._buf += data
+        if not data:
+            return
 
-        if self.buf_len() > self.max_buf_len:
-            self._empty_buf()
+        try:
+            self._delegate.write_data(data, finished=False)
+
+        except BaseHttpStreamWriteException as e:
+            self._finished.set()
+            if self._exc is None:
+                self._exc = e
+
+            raise
 
     async def flush(self) -> None:
         """
@@ -158,22 +131,20 @@ class BaseHttpStreamWriter(abc.ABC):
 
                 return
 
-            self._empty_buf()
-
             try:
                 await self._delegate.flush_buf()
 
             except asyncio.CancelledError:
                 raise
 
-            except Exception as e:
+            except BaseHttpStreamWriteException as e:
                 self._finished.set()
                 if self._exc is None:
                     self._exc = e
 
                 raise
 
-    def finish(self) -> None:
+    def finish(self, data: bytes=b"") -> None:
         """
         Finish the stream.
         """
@@ -186,9 +157,9 @@ class BaseHttpStreamWriter(abc.ABC):
         self._finished.set()
 
         try:
-            self._empty_buf(finished=True)
+            self._delegate.write_data(data, finished=True)
 
-        except Exception as e:
+        except BaseHttpStreamWriteException as e:
             if self._exc is None:
                 self._exc = e
 

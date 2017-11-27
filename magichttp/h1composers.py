@@ -102,14 +102,13 @@ class BaseH1Composer(abc.ABC):
         return b"".join(buf)
 
     def compose_body(
-        self, data: Union[bytes, bytearray],
-            finished: bool=False) -> bytes:
+            self, data: bytes, finished: bool=False) -> bytes:
         assert not self._finished, "Composers are not reusable."
         assert self._using_chunked_body is not None, \
             "You should compose the initial first."
 
         if self._using_chunked_body:
-            if len(data) > 0:
+            if data:
                 data_len = f"{len(data):x}".encode("utf-8")
 
                 if finished:
@@ -145,7 +144,7 @@ class H1RequestComposer(BaseH1Composer):
         assert self._using_chunked_body is None, "Composers are not reusable."
 
         refined_headers: MutableMapping[bytes, bytes]
-        if headers:
+        if isinstance(headers, magicdict.FrozenMagicDict):
             refined_headers = magicdict.TolerantMagicDict(headers)
 
         else:
@@ -209,7 +208,7 @@ class H1ResponseComposer(BaseH1Composer):
             version = req_initial.version
 
         refined_headers: MutableMapping[bytes, bytes]
-        if headers:
+        if isinstance(headers, magicdict.FrozenMagicDict):
             refined_headers = magicdict.TolerantMagicDict(headers)
 
         else:

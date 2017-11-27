@@ -22,7 +22,6 @@ from . import constants
 import abc
 import asyncio
 import typing
-import contextlib
 import http
 
 if typing.TYPE_CHECKING:

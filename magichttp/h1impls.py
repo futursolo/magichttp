@@ -56,8 +56,6 @@ class BaseH1StreamManager(
         self._read_exc: Optional[readers.BaseHttpStreamReadException] = None
         self._read_ended = False
 
-        self._pending_initial_bytes: Optional[bytes] = None
-
         self._writer_ready = asyncio.Event()
         self._write_exc: Optional[writers.BaseHttpStreamWriteException] = None
         self._write_finished = False
@@ -192,21 +190,24 @@ class BaseH1StreamManager(
 
         self._impl.pause_reading()
 
-    def dump_buf(self, buf: bytearray, finished: bool=False) -> None:
+    def write_data(self, data: bytes, finished: bool=False) -> None:
         if self._write_finished:
             if self._write_exc:
                 raise self._write_exc
 
             raise writers.HttpStreamWriteAfterFinishedError
 
-        data = self._composer.compose_body(buf, finished=finished)
+        data = self._composer.compose_body(data, finished=finished)
 
-        if self._pending_initial_bytes:
-            data = self._pending_initial_bytes + data
-            self._pending_initial_bytes = None
+        try:
+            self._transport.write(data)
 
-        self._transport.write(data)
-        buf.clear()  # type: ignore
+        except Exception as e:
+            exc = writers.HttpStreamWriteAbortedError()
+            exc.__cause__ = e
+            self._tear_writing(exc)
+
+            raise exc
 
         if finished:
             self._write_finished = True
@@ -219,12 +220,6 @@ class BaseH1StreamManager(
                 raise self._write_exc
 
             return
-
-        if self._pending_initial_bytes:
-            data = self._pending_initial_bytes
-            self._pending_initial_bytes = None
-
-            self._transport.write(data)
 
         await self._protocol._flush()
 
@@ -531,10 +526,20 @@ class H1ServerStreamManager(
         if self._write_exc:
             raise self._write_exc
 
-        initial, self._pending_initial_bytes = \
+        initial, initial_bytes = \
             self._composer.compose_response(
                 status_code=status_code, headers=headers,
                 req_initial=self._reader.initial if self._reader else None)
+
+        try:
+            self._transport.write(initial_bytes)
+
+        except Exception as e:
+            exc = writers.HttpStreamWriteAbortedError()
+            exc.__cause__ = e
+            self._tear_writing(exc)
+
+            raise exc
 
         writer = writers.HttpResponseWriter(
             self, initial=initial, reader=self._reader)
@@ -729,11 +734,21 @@ class H1ClientStreamManager(
         if self._write_exc:
             raise self._write_exc
 
-        initial, self._pending_initial_bytes = \
+        initial, initial_bytes = \
             self._composer.compose_request(
                 method=method, uri=uri, authority=authority,
                 version=self._http_version,
                 scheme=scheme, headers=headers)
+
+        try:
+            self._transport.write(initial_bytes)
+
+        except Exception as e:
+            exc = writers.HttpStreamWriteAbortedError()
+            exc.__cause__ = e
+            self._tear_writing(exc)
+
+            raise exc
 
         writer = writers.HttpRequestWriter(
             self, initial=initial)
