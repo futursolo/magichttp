@@ -3,6 +3,9 @@ magichttp
 .. image:: https://travis-ci.org/futursolo/magichttp.svg?branch=master
     :target: https://travis-ci.org/futursolo/magichttp
 
+.. image:: https://coveralls.io/repos/github/futursolo/magichttp/badge.svg?branch=master
+    :target: https://coveralls.io/github/futursolo/magichttp
+
 Asynchronous http, made easy.
 
 Magichttp is an http stack for asyncio, which provides one the ability to create
