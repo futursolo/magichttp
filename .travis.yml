@@ -16,6 +16,7 @@ matrix:
 
     - os: linux
       python: 3.6.3
+      env: DEPLOY_PYPI=1
 
     - os: linux
       python: 3.6
@@ -42,3 +43,29 @@ install:
 script:
   - mypy --python-version 3.6 --disallow-untyped-calls --disallow-untyped-defs --warn-unused-ignores --show-traceback --strict-optional --ignore-missing-imports --show-error-context --show-traceback -p magichttp
   - pycodestyle --show-source magichttp
+
+deploy:
+  - provider: pypi
+    distributions: sdist bdist_wheel
+    server: https://test.pypi.org/pypi
+    user: "futursolo"
+    password:
+      secure: "MWIf1MnwH6JhUlWvKI7t16iGGUcMw/Ndp3v7KC511zKUeB91GqCMFVe68paVSjWTCVwkcodw03UmEkvFT2xhAv+aAs3NwV0Z57sQRczfeZHoajJrI5N5ujiy68ZBjVRcUt4RsEBsCQaLagPbog0DY4TWXOVpee7C7LwfGEfHYwNfNjFmZZeOU3Ok5K1dqqWPVvMTQ6fmJtHWM3Tn5NUIRai8MUKHf7PBxDgMqsBk8dLq7YAmDaBf+bSScOXfn/J2XiiYjW2adXC8UktdSu0qKSPtu1GbfIzFEED6Vu7Od4yi/4wNsDYBTJsdLXXGT2o5b7DI1JUN6FNzTarZgJkVGxtuFGL3Bemt0K2HwIaQEesQIMuEONT9crODnar4LAX0k4r5d9bJtnuFQmWGDzn6lYNpTz5DqHWwH0hNgeuLn6/LDty8CtcSn0JlXsrC7GU0EQSAes4KauB93xxIUYSGHeGJWD/PZj824bZzyY0/eYCb9wEMruNd7JzQKlySaT9KkEIkBs6KHL46ETma1eMVRRSmZRKNzNJZLanRG2f9ucU5UUDxP0nVEGNxFdaxVgilsMRw7aieI031da8XvIo6LbpII7L/BWz1QpGQep2WCCcJRaOA0FToNTQfVXCZOniO6HuJ6T47q4HjogkQe9yege2yLm/xzUf/NreJmM3m/Ak="
+    skip_cleanup: true
+    skip_upload_docs: true
+    on:
+      branch: master
+      tags: false
+      condition: "$DEPLOY_PYPI = 1"
+
+  - provider: pypi
+    distributions: sdist bdist_wheel
+    user: "futursolo"
+    password:
+      secure: "YmAC/CblpCnTUYXsuMKQ7LTvwf0CSOaM6kvrPmcF7EARWHEq2mRdDTaCedJ9RCpUMBJXlNAh/thUrAqcAO1Uywo9+sotSGQREGSPIOHkJpwybo5LqI3B+3qgyLR44R987Jnp+cUOr6SMnp/GAtMPbsQhYQKM9POd+VUOpRsj8EkqwnUYRbBO6s3yGBcOEn55aooKJt3LusKfrPF6o7hI5zAjRsT5/bxr6ln1d1J41ApAgyMNjsdU8mBc4+C6mcIs09Lg4FKOIWzG0rLwD+lefg0j9zeDvrHCJkLQDOa+uoV5+SvE/zw5Ods6YpSjw7XrtjwKjW6008Re59pFcGrLvie/8hZmDMmiTOj0qO2KJdYNdPgOd4WzPC8+0uXv38CkBA6h/CTnCARBJP9UoGMPS6z2RX7DKAnb8gNReQJNEr6wjwI05ftjQGLe/Fg3FpSHBBvAGFAyDArW8IUO8Yrb4DZsCYSkkWn8pk+0mJ/nw66oEyTV/d7P3F9uIgpKmyCjJPronlwRQyKfIKANAfKxaRGYJ5lNHPbtixzD90/SKFzTK7rLXc8yzFjQfpe6Rn7TIA1CxltDKuPCuv31vdMyV247EXrrymHito/nsmUyMKTKUyPMY+37H6fIVg46UyuUkwNlyhW9lQN21hXA/De1GK0fTyWPI246k5ig9iGHUOY="
+    skip_cleanup: true
+    skip_upload_docs: true
+    on:
+      branch: master
+      tags: true
+      condition: "$DEPLOY_PYPI = 1"
