@@ -69,7 +69,12 @@ class BaseH1Parser(abc.ABC):
         pos = self._buf.find(b"\r\n\r\n", self._searched_len)
 
         if pos == -1:
-            self._searched_len = len(self._buf)
+            searched_len = len(self._buf) - 3
+            if searched_len < 0:
+                self._searched_len = 0
+
+            else:
+                self._searched_len = searched_len
 
             return None
 
@@ -92,7 +97,7 @@ class BaseH1Parser(abc.ABC):
 
         except ValueError as e:
             raise UnparsableHttpMessage(
-                "Unable to pack headers.") from e
+                "Unable to unpack headers.") from e
 
         return magicdict.FrozenTolerantMagicDict(headers)
 

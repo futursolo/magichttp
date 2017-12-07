@@ -41,7 +41,7 @@ class HttpRequestInitial:
         self, method: "constants.HttpRequestMethod", *,
         uri: bytes, authority: Optional[bytes],
         version: "constants.HttpVersion",
-        scheme: Optional[bytes],
+        scheme: bytes,
         headers: "magicdict.FrozenTolerantMagicDict[bytes, bytes]"
             ) -> None:
         self._method = method
@@ -74,9 +74,6 @@ class HttpRequestInitial:
 
     @property
     def scheme(self) -> bytes:
-        if self._scheme is None:
-            raise AttributeError("Scheme is not available.")
-
         return self._scheme
 
     @property
@@ -93,9 +90,7 @@ class HttpRequestInitial:
         if self._authority is not None:
             parts.append(("authority", repr(self._authority)))
 
-        if self._scheme is not None:
-            parts.append(("scheme", repr(self._scheme)))
-
+        parts.append(("scheme", repr(self._scheme)))
         parts.append(("headers", repr(self._headers)))
 
         args_repr = ", ".join([f"{k}={v}" for k, v in parts])
