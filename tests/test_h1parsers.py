@@ -111,6 +111,22 @@ class H1RequestParserTestCase:
         with pytest.raises(UnparsableHttpMessage):
             parser.parse_request()
 
+        buf = bytearray(
+            b"GET / HTTP/1.1\r\nTransfer-Encoding: Identity; Chunked\r\n\r\n")
+
+        parser = H1RequestParser(buf, using_https=False)
+
+        with pytest.raises(UnparsableHttpMessage):
+            parser.parse_request()
+
+        buf = bytearray(
+            b"GET / HTTP/1.1\r\nTransfer-Encoding: Identity; Gzip\r\n\r\n")
+
+        parser = H1RequestParser(buf, using_https=False)
+
+        with pytest.raises(UnparsableHttpMessage):
+            parser.parse_request()
+
         buf = bytearray(b"GET / HTTP/1.1\r\n\r")
 
         parser = H1RequestParser(buf, using_https=False)
@@ -163,5 +179,26 @@ class H1RequestParserTestCase:
         parser.buf_ended = True
 
         assert parser.parse_body() == body_part
+
+        assert parser.parse_body() is None
+
+    def test_chunked_request(self):
+        buf = bytearray(
+            b"POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n")
+
+        parser = H1RequestParser(buf, using_https=False)
+        req = parser.parse_request()
+
+        assert req is not None
+
+        assert req.headers[b"transfer-encoding"] == b"Chunked"
+
+        assert parser.parse_body() == b""
+
+        buf += b"4\r\n1234\r\n"
+
+        assert parser.parse_body() == b"1234"
+
+        buf += b"0\r\n\r\n"
 
         assert parser.parse_body() is None

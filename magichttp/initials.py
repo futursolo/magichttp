@@ -80,7 +80,7 @@ class HttpRequestInitial:
     def headers(self) -> "magicdict.FrozenTolerantMagicDict[bytes, bytes]":
         return self._headers
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         parts = [
             ("method", repr(self._method)),
             ("uri", repr(self._uri)),
@@ -97,7 +97,7 @@ class HttpRequestInitial:
 
         return f"{self.__class__.__name__}({args_repr})"
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return repr(self)
 
 
@@ -126,7 +126,7 @@ class HttpResponseInitial:
     def headers(self) -> "magicdict.FrozenTolerantMagicDict[bytes, bytes]":
         return self._headers
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         parts = [
             ("status_code", repr(self._status_code)),
             ("version", repr(self._version)),
@@ -137,5 +137,5 @@ class HttpResponseInitial:
 
         return f"{self.__class__.__name__}({args_repr})"
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return repr(self)
