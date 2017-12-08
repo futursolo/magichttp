@@ -200,13 +200,7 @@ class BaseH1Parser(abc.ABC):
                 return b""
 
         if self._body_chunk_len_left == 0:
-            try_drop_crlf()
-
-            if self._body_chunk_crlf_dropped and len(self._buf) > 0:
-                return self._parse_chunked_body()
-
-            else:
-                return b""
+            return b""
 
         if not self._buf:
             # No more data.

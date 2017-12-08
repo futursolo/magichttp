@@ -210,6 +210,7 @@ class H1RequestParserTestCase:
         buf += b"12345"
 
         assert parser.parse_body() == b"12345"
+        assert parser.parse_body() == b""
 
         buf += b"\r\n"
 
