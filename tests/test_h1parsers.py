@@ -195,10 +195,30 @@ class H1RequestParserTestCase:
 
         assert parser.parse_body() == b""
 
-        buf += b"4\r\n1234\r\n"
+        buf += b"4\r\n123"
 
-        assert parser.parse_body() == b"1234"
+        assert parser.parse_body() == b"123"
 
-        buf += b"0\r\n\r\n"
+        buf += b"4\r\n"
+
+        assert parser.parse_body() == b"4"
+
+        buf += b"5\r\n"
+
+        assert parser.parse_body() == b""
+
+        buf += b"12345"
+
+        assert parser.parse_body() == b"12345"
+
+        buf += b"\r\n"
+
+        assert parser.parse_body() == b""
+
+        buf += b"0\r\n\r"
+
+        assert parser.parse_body() == b""
+
+        buf += b"\n"
 
         assert parser.parse_body() is None

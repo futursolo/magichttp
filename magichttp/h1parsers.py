@@ -137,17 +137,12 @@ class BaseH1Parser(abc.ABC):
             raise UnparsableHttpMessage(
                 "The value of Content-Length is not valid.") from e
 
-    def _parse_chunked_body(
-            self, _can_drop_last_crlf: bool=True) -> Optional[bytes]:
+    def _parse_chunked_body(self) -> Optional[bytes]:
         def try_drop_crlf() -> None:
             if self._body_chunk_crlf_dropped:
                 return
 
             if self._body_chunk_len_left > 0:
-                return
-
-            if self._body_chunk_len_left == _LAST_CHUNK and \
-                    not _can_drop_last_crlf:
                 return
 
             if len(self._buf) < 2:
@@ -178,16 +173,11 @@ class BaseH1Parser(abc.ABC):
 
             try:
                 len_str = len_bytes.decode("latin-1")
-
-            except UnicodeDecodeError as e:
-                raise UnparsableHttpMessage(
-                    "Unable to decode the chunk length as latin-1.") from e
-            try:
                 self._body_chunk_len_left = int(len_str, 16)
 
-            except ValueError as e:
+            except (UnicodeDecodeError, ValueError) as e:
                 raise UnparsableHttpMessage(
-                    "Chunk length is not a valid hex integer.") from e
+                    "Failed to decode Chunk Length") from e
 
             if self._body_chunk_len_left == 0:
                 self._body_chunk_len_left = _LAST_CHUNK
@@ -213,12 +203,12 @@ class BaseH1Parser(abc.ABC):
             try_drop_crlf()
 
             if self._body_chunk_crlf_dropped and len(self._buf) > 0:
-                return self._parse_chunked_body(_can_drop_last_crlf=False)
+                return self._parse_chunked_body()
 
             else:
                 return b""
 
-        if len(self._buf) == 0:
+        if not self._buf:
             # No more data.
             return b""
 
@@ -231,9 +221,6 @@ class BaseH1Parser(abc.ABC):
             current_chunk = self._buf[0:self._body_chunk_len_left]
             del self._buf[0:self._body_chunk_len_left]
             self._body_chunk_len_left = 0
-
-        if self._body_chunk_len_left == 0:
-            try_drop_crlf()
 
         return current_chunk
 
