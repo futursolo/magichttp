@@ -17,7 +17,6 @@
 
 from typing import Optional, Mapping, MutableMapping, Union, Iterable, Tuple
 
-from . import httputils
 from . import initials
 from . import constants
 from . import _version
@@ -60,8 +59,9 @@ class BaseH1Composer(abc.ABC):
 
     def _decide_body_by_transfer_encoding(
             self, transfer_encoding_bytes: bytes) -> None:
-        transfer_encoding_list = list(
-            httputils.parse_semicolon_header(transfer_encoding_bytes))
+        transfer_encoding_list = [
+            i.strip().lower() for i in transfer_encoding_bytes.split(b";")
+            if i]
 
         last_transfer_encoding = transfer_encoding_list[-1]
 

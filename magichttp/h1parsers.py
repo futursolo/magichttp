@@ -18,7 +18,6 @@
 from typing import Optional, List, Tuple
 
 from . import initials
-from . import httputils
 from . import constants
 
 import abc
@@ -103,8 +102,9 @@ class BaseH1Parser(abc.ABC):
 
     def _determine_by_transfer_encoding(
             self, transfer_encoding_bytes: bytes) -> None:
-        transfer_encoding_list = list(
-            httputils.parse_semicolon_header(transfer_encoding_bytes))
+        transfer_encoding_list = [
+            i.strip().lower() for i in transfer_encoding_bytes.split(b";")
+            if i]
 
         last_transfer_encoding = transfer_encoding_list[-1]
 

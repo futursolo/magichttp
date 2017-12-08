@@ -120,7 +120,7 @@ class H1RequestParserTestCase:
             parser.parse_request()
 
         buf = bytearray(
-            b"GET / HTTP/1.1\r\nTransfer-Encoding: Identity; Gzip\r\n\r\n")
+            b"GET / HTTP/1.1\r\nTransfer-Encoding: Chunked; Gzip\r\n\r\n")
 
         parser = H1RequestParser(buf, using_https=False)
 
