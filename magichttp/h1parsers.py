@@ -361,6 +361,8 @@ class H1ResponseParser(BaseH1Parser):
             self._body_len_left = _ENDLESS_BODY
             # Read until close.
 
+            return
+
         self._determine_content_length_by_header(
             initial.headers[b"content-length"])
 

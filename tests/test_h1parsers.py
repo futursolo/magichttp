@@ -17,10 +17,12 @@
 
 from magichttp.h1parsers import H1RequestParser, H1ResponseParser, \
     UnparsableHttpMessage, IncompleteHttpMessage
-from magichttp import HttpVersion, HttpRequestMethod
+from magichttp import HttpVersion, HttpRequestMethod, HttpRequestInitial
 
 import os
 import pytest
+import magicdict
+import http
 
 
 class H1RequestParserTestCase:
@@ -127,6 +129,15 @@ class H1RequestParserTestCase:
         with pytest.raises(UnparsableHttpMessage):
             parser.parse_request()
 
+        buf = bytearray(
+            b"GET / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\ng\r\n\r\n")
+
+        parser = H1RequestParser(buf, using_https=False)
+        parser.parse_request()
+
+        with pytest.raises(UnparsableHttpMessage):
+            parser.parse_body()
+
         buf = bytearray(b"GET / HTTP/1.1\r\n\r")
 
         parser = H1RequestParser(buf, using_https=False)
@@ -136,6 +147,17 @@ class H1RequestParserTestCase:
             parser.parse_request()
 
         buf = bytearray(b"GET / HTTP/1.1\r\nContent-Length:20\r\n\r\n")
+
+        parser = H1RequestParser(buf, using_https=False)
+        parser.buf_ended = True
+
+        parser.parse_request()
+
+        with pytest.raises(IncompleteHttpMessage):
+            parser.parse_body()
+
+        buf = bytearray(
+            b"GET / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n0\r")
 
         parser = H1RequestParser(buf, using_https=False)
         parser.buf_ended = True
@@ -223,3 +245,28 @@ class H1RequestParserTestCase:
         buf += b"\n"
 
         assert parser.parse_body() is None
+
+
+class H1ResponseParserTestCase:
+    def test_init(self):
+        parser = H1ResponseParser(bytearray(), using_https=False)
+
+    def test_simple_response(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.Get,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=b"https",
+            headers=magicdict.TolerantMagicDict(),
+            authority=None)
+
+        buf = bytearray(b"HTTP/1.1 200 OK\r\n\r\n")
+
+        parser = H1ResponseParser(buf, using_https=False)
+        res = parser.parse_response(req_initial=req)
+
+        assert res is not None
+
+        assert res.headers == {}
+        assert res.status_code == http.HTTPStatus.OK
+
