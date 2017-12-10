@@ -209,11 +209,7 @@ class H1RequestParserTestCase:
             b"POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n")
 
         parser = H1RequestParser(buf, using_https=False)
-        req = parser.parse_request()
-
-        assert req is not None
-
-        assert req.headers[b"transfer-encoding"] == b"Chunked"
+        assert parser.parse_request() is not None
 
         assert parser.parse_body() == b""
 
@@ -260,13 +256,137 @@ class H1ResponseParserTestCase:
             headers=magicdict.TolerantMagicDict(),
             authority=None)
 
-        buf = bytearray(b"HTTP/1.1 200 OK\r\n\r\n")
+        buf = bytearray(b"HTTP/1.1 200 OK\r\n\r")
 
         parser = H1ResponseParser(buf, using_https=False)
+
+        assert parser.parse_response(req_initial=req) is None
+
+        buf += b"\n"
+
         res = parser.parse_response(req_initial=req)
 
         assert res is not None
 
         assert res.headers == {}
         assert res.status_code == http.HTTPStatus.OK
+
+    def test_head_request(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.Head,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=b"https",
+            headers=magicdict.TolerantMagicDict(),
+            authority=None)
+
+        buf = bytearray(b"HTTP/1.1 200 OK\r\nContent-Length: 30\r\n\r\nHTTP")
+
+        parser = H1ResponseParser(buf, using_https=False)
+
+        res = parser.parse_response(req_initial=req)
+
+        assert res.status_code == http.HTTPStatus.OK
+        assert res.headers[b"content-length"] == b"30"
+
+        assert parser.parse_body() is None
+
+    def test_no_content(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.Get,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=b"https",
+            headers=magicdict.TolerantMagicDict(),
+            authority=None)
+
+        buf = bytearray(
+            b"HTTP/1.1 204 No Content\r\nConnection: Keep-Alive\r\n\r\nHTTP")
+
+        parser = H1ResponseParser(buf, using_https=False)
+
+        res = parser.parse_response(req_initial=req)
+
+        assert res.status_code == http.HTTPStatus.NO_CONTENT
+
+        assert parser.parse_body() is None
+
+    def test_simple_response_with_body(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.Get,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=b"https",
+            headers=magicdict.TolerantMagicDict(),
+            authority=None)
+
+        buf = bytearray(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 20\r\n\r\n")
+        parser = H1ResponseParser(buf, using_https=True)
+
+        assert parser.parse_response(req_initial=req) is not None
+
+        assert parser.parse_body() == b""
+
+        body_part = os.urandom(5)
+        buf += body_part
+
+        assert parser.parse_body() == body_part
+
+        assert parser.parse_body() == b""
+
+        body_part = os.urandom(16)
+        buf += body_part
+
+        assert parser.parse_body() == body_part[:15]
+
+        assert parser.parse_body() is None
+
+    def test_chunked_response(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.Get,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=b"https",
+            headers=magicdict.TolerantMagicDict(),
+            authority=None)
+
+        buf = bytearray(
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n")
+
+        parser = H1ResponseParser(buf, using_https=False)
+
+        assert parser.parse_response(req_initial=req) is not None
+
+        assert parser.parse_body() == b""
+
+        buf += b"4\r\n123"
+
+        assert parser.parse_body() == b"123"
+
+        buf += b"4\r\n"
+
+        assert parser.parse_body() == b"4"
+
+        buf += b"5\r\n"
+
+        assert parser.parse_body() == b""
+
+        buf += b"12345"
+
+        assert parser.parse_body() == b"12345"
+        assert parser.parse_body() == b""
+
+        buf += b"\r\n"
+
+        assert parser.parse_body() == b""
+
+        buf += b"0\r\n\r"
+
+        assert parser.parse_body() == b""
+
+        buf += b"\n"
+
+        assert parser.parse_body() is None
+
 

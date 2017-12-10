@@ -383,7 +383,7 @@ class H1ResponseParser(BaseH1Parser):
         try:
             first_line = initial_lines.pop(0)
 
-            version_buf, status_code_buf, status_text = first_line.split(b" ")
+            version_buf, status_code_buf, *status_text = first_line.split(b" ")
 
             status_code_str = status_code_buf.decode()
 
