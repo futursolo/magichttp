@@ -19,7 +19,7 @@ from typing import Optional, Union, Iterable, Tuple, Mapping, Any
 
 import typing
 
-if typing.TYPE_CHECKING:
+if typing.TYPE_CHECKING:  # pragma: no cover
     from . import constants
 
     import magicdict

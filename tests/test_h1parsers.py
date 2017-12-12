@@ -270,6 +270,7 @@ class H1ResponseParserTestCase:
 
         assert res.headers == {}
         assert res.status_code == http.HTTPStatus.OK
+        assert res.version == HttpVersion.V1_1
 
     def test_head_request(self):
         req = HttpRequestInitial(
@@ -290,6 +291,30 @@ class H1ResponseParserTestCase:
         assert res.headers[b"content-length"] == b"30"
 
         assert parser.parse_body() is None
+
+    def test_malformed_response(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.Get,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=b"https",
+            headers=magicdict.TolerantMagicDict(),
+            authority=None)
+
+        buf = bytearray(b"HTTP/1.1 ???200 Not OK\r\n\r\n")
+
+        parser = H1ResponseParser(buf, using_https=False)
+
+        with pytest.raises(UnparsableHttpMessage):
+            parser.parse_response(req_initial=req)
+
+        buf = bytearray(b"HTTP/1.1 200 OK\r\n\r")
+
+        parser = H1ResponseParser(buf, using_https=False)
+        parser.buf_ended = True
+
+        with pytest.raises(IncompleteHttpMessage):
+            parser.parse_response(req_initial=req)
 
     def test_no_content(self):
         req = HttpRequestInitial(
@@ -390,3 +415,47 @@ class H1ResponseParserTestCase:
         assert parser.parse_body() is None
 
 
+    def test_upgrade_request(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.Get,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=b"https",
+            headers=magicdict.TolerantMagicDict([(b"Connection", "Upgrade")]),
+            authority=None)
+
+        buf = bytearray(
+            b"HTTP/1.1 101 Switching Protocols\r\n"
+            b"Connection: Upgrade\r\n\r\n")
+        parser = H1ResponseParser(buf, using_https=False)
+
+        req = parser.parse_response(req_initial=req)
+
+        assert req is not None
+
+        assert req.headers[b"connection"] == b"Upgrade"
+
+        assert parser.parse_body() == b""
+
+        body_part = os.urandom(5)
+        buf += body_part
+
+        assert parser.parse_body() == body_part
+
+        assert parser.parse_body() == b""
+
+        body_part = os.urandom(16)
+        buf += body_part
+
+        assert parser.parse_body() == body_part
+
+        assert parser.parse_body() == b""
+        assert parser.parse_body() == b""
+
+        body_part = os.urandom(20)
+        buf += body_part
+        parser.buf_ended = True
+
+        assert parser.parse_body() == body_part
+
+        assert parser.parse_body() is None
