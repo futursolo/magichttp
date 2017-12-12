@@ -50,9 +50,7 @@ class HttpRequestInitialRequiredForComposing(ValueError):
 class BaseH1Composer(abc.ABC):
     __slots__ = ("_using_https", "_using_chunked_body", "_finished")
 
-    def __init__(self, using_https: bool=False) -> None:
-        self._using_https = using_https
-
+    def __init__(self) -> None:
         self._using_chunked_body: Optional[bool] = None
 
         self._finished = False
@@ -127,6 +125,11 @@ class BaseH1Composer(abc.ABC):
 
 
 class H1RequestComposer(BaseH1Composer):
+    def __init__(self, using_https: bool=False) -> None:
+        super().__init__()
+
+        self._using_https = using_https
+
     def compose_request(
         self, method: constants.HttpRequestMethod, *,
         uri: bytes, authority: Optional[bytes],

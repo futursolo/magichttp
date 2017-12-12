@@ -245,7 +245,7 @@ class H1RequestParserTestCase:
 
 class H1ResponseParserTestCase:
     def test_init(self):
-        parser = H1ResponseParser(bytearray(), using_https=False)
+        parser = H1ResponseParser(bytearray())
 
     def test_simple_response(self):
         req = HttpRequestInitial(
@@ -258,7 +258,7 @@ class H1ResponseParserTestCase:
 
         buf = bytearray(b"HTTP/1.1 200 OK\r\n\r")
 
-        parser = H1ResponseParser(buf, using_https=False)
+        parser = H1ResponseParser(buf)
 
         assert parser.parse_response(req_initial=req) is None
 
@@ -283,7 +283,7 @@ class H1ResponseParserTestCase:
 
         buf = bytearray(b"HTTP/1.1 200 OK\r\nContent-Length: 30\r\n\r\nHTTP")
 
-        parser = H1ResponseParser(buf, using_https=False)
+        parser = H1ResponseParser(buf)
 
         res = parser.parse_response(req_initial=req)
 
@@ -303,14 +303,14 @@ class H1ResponseParserTestCase:
 
         buf = bytearray(b"HTTP/1.1 ???200 Not OK\r\n\r\n")
 
-        parser = H1ResponseParser(buf, using_https=False)
+        parser = H1ResponseParser(buf)
 
         with pytest.raises(UnparsableHttpMessage):
             parser.parse_response(req_initial=req)
 
         buf = bytearray(b"HTTP/1.1 200 OK\r\n\r")
 
-        parser = H1ResponseParser(buf, using_https=False)
+        parser = H1ResponseParser(buf)
         parser.buf_ended = True
 
         with pytest.raises(IncompleteHttpMessage):
@@ -328,7 +328,7 @@ class H1ResponseParserTestCase:
         buf = bytearray(
             b"HTTP/1.1 204 No Content\r\nConnection: Keep-Alive\r\n\r\nHTTP")
 
-        parser = H1ResponseParser(buf, using_https=False)
+        parser = H1ResponseParser(buf)
 
         res = parser.parse_response(req_initial=req)
 
@@ -347,7 +347,7 @@ class H1ResponseParserTestCase:
 
         buf = bytearray(
             b"HTTP/1.1 200 OK\r\nContent-Length: 20\r\n\r\n")
-        parser = H1ResponseParser(buf, using_https=True)
+        parser = H1ResponseParser(buf)
 
         assert parser.parse_response(req_initial=req) is not None
 
@@ -379,7 +379,7 @@ class H1ResponseParserTestCase:
         buf = bytearray(
             b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n")
 
-        parser = H1ResponseParser(buf, using_https=False)
+        parser = H1ResponseParser(buf)
 
         assert parser.parse_response(req_initial=req) is not None
 
@@ -427,7 +427,7 @@ class H1ResponseParserTestCase:
         buf = bytearray(
             b"HTTP/1.1 101 Switching Protocols\r\n"
             b"Connection: Upgrade\r\n\r\n")
-        parser = H1ResponseParser(buf, using_https=False)
+        parser = H1ResponseParser(buf)
 
         req = parser.parse_response(req_initial=req)
 

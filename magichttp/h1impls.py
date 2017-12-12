@@ -380,8 +380,7 @@ class H1ServerStreamManager(
 
         self.__parser = h1parsers.H1RequestParser(
             self._buf, using_https=self._impl._using_https)
-        self.__composer = h1composers.H1ResponseComposer(
-            self._impl._using_https)
+        self.__composer = h1composers.H1ResponseComposer()
 
         self.__reader: Optional[readers.HttpRequestReader] = None
         self.__writer: Optional[writers.HttpResponseWriter] = None
@@ -600,8 +599,7 @@ class H1ClientStreamManager(
 
         self.__composer = h1composers.H1RequestComposer(
             self._impl._using_https)
-        self.__parser = h1parsers.H1ResponseParser(
-            self._buf, using_https=self._impl._using_https)
+        self.__parser = h1parsers.H1ResponseParser(self._buf)
 
         self.__writer: Optional[writers.HttpRequestWriter] = None
         self.__reader: Optional[readers.HttpResponseReader] = None

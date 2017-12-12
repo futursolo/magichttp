@@ -45,13 +45,11 @@ class BaseH1Parser(abc.ABC):
         "_body_chunk_len_left", "_body_chunk_crlf_dropped", "_finished",
         "_incompleted_body", "buf_ended")
 
-    def __init__(self, buf: bytearray, using_https: bool=False) -> None:
+    def __init__(self, buf: bytearray) -> None:
         self._buf = buf
         self.buf_ended = False
 
         self._searched_len = 0
-
-        self._using_https = using_https
 
         self._body_len_left: Optional[int] = None
         # None means the initial is not ready,
@@ -268,6 +266,11 @@ class BaseH1Parser(abc.ABC):
 
 
 class H1RequestParser(BaseH1Parser):
+    def __init__(self, buf: bytearray, using_https: bool=False) -> None:
+        super().__init__(buf)
+
+        self._using_https = using_https
+
     def _discover_request_body_len(
             self, initial: initials.HttpRequestInitial) -> None:
         if initial.headers.get_first(
