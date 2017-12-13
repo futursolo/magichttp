@@ -24,10 +24,9 @@ from . import _version
 
 import abc
 import magicdict
-import collections
 import typing
 
-if typing.TYPE_CHECKING:
+if typing.TYPE_CHECKING:  # pragma: no cover
     import http
 
 _SELF_IDENTIFIER = f"magichttp/{_version.__version__}".encode()
@@ -51,12 +50,11 @@ class BaseH1Composer(abc.ABC):
 
     def _compose_initial_bytes(
         self, *first_line_args: bytes,
-            headers: Optional[Mapping[bytes, bytes]]=None) -> bytes:
+            headers: magicdict.FrozenTolerantMagicDict[bytes, bytes]) -> bytes:
         buf = [b" ".join(first_line_args), b"\r\n"]
 
-        if headers:
-            for key, value in headers.items():
-                buf.append(b"%s: %s\r\n" % (key, value))
+        for key, value in headers.items():
+            buf.append(b"%s: %s\r\n" % (key.title(), value))
 
         buf.append(b"\r\n")
 
@@ -104,12 +102,7 @@ class H1RequestComposer(BaseH1Composer):
             ) -> Tuple[initials.HttpRequestInitial, bytes]:
         assert self._using_chunked_body is None, "Composers are not reusable."
 
-        refined_headers: MutableMapping[bytes, bytes]
-        if isinstance(headers, magicdict.FrozenMagicDict):
-            refined_headers = magicdict.TolerantMagicDict(headers)
-
-        else:
-            refined_headers = collections.OrderedDict()
+        refined_headers = magicdict.TolerantMagicDict(headers or {})
 
         refined_headers.setdefault(b"user-agent", _SELF_IDENTIFIER)
         refined_headers.setdefault(b"accept", b"*/*")
@@ -145,7 +138,7 @@ class H1RequestComposer(BaseH1Composer):
             uri=uri,
             authority=authority,
             scheme=scheme,
-            headers=refined_headers)
+            headers=magicdict.FrozenTolerantMagicDict(refined_headers))
 
         return (refined_initial, self._compose_initial_bytes(
             method.value, uri, version.value,
@@ -170,12 +163,7 @@ class H1ResponseComposer(BaseH1Composer):
         else:
             version = req_initial.version
 
-        refined_headers: MutableMapping[bytes, bytes]
-        if isinstance(headers, magicdict.FrozenMagicDict):
-            refined_headers = magicdict.TolerantMagicDict(headers)
-
-        else:
-            refined_headers = collections.OrderedDict()
+        refined_headers = magicdict.TolerantMagicDict(headers or {})
 
         refined_headers.setdefault(b"server", _SELF_IDENTIFIER)
 
@@ -217,7 +205,8 @@ class H1ResponseComposer(BaseH1Composer):
             self._using_chunked_body = False
 
         refined_initial = initials.HttpResponseInitial(
-            status_code, version=version, headers=refined_headers)
+            status_code, version=version,
+            headers=magicdict.FrozenTolerantMagicDict(refined_headers))
 
         return (refined_initial, self._compose_initial_bytes(
                 version.value,

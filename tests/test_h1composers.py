@@ -17,10 +17,39 @@
 
 from magichttp.h1composers import H1RequestComposer, H1ResponseComposer
 
+from magichttp import HttpRequestMethod, HttpVersion, __version__
+
 
 class H1RequestComposerTestCase:
     def test_init(self):
         composer = H1RequestComposer()
+
+    def test_simple_request(self):
+        composer = H1RequestComposer()
+
+        req, req_bytes = composer.compose_request(
+            method=HttpRequestMethod.Get,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            authority=None,
+            scheme=None,
+            headers=None)
+
+        assert req.version == HttpVersion.V1_1
+        assert req.uri == b"/"
+        assert not hasattr(req, "authority")
+        assert not hasattr(req, "scheme")
+        assert req.headers == {
+            b"user-agent": b"magichttp/%s" % __version__.encode(),
+            b"accept": b"*/*",
+            b"connection": b"Keep-Alive"}
+
+        assert req_bytes == (
+            b"GET / HTTP/1.1\r\n" +
+            b"User-Agent: magichttp/%s\r\n" % __version__.encode() +
+            b"Accept: */*\r\nConnection: Keep-Alive\r\n\r\n")
+
+        assert composer.compose_body(b"", finished=True) == b""
 
 
 class H1ResponseComposerTestCase:

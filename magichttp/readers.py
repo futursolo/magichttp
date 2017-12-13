@@ -24,7 +24,7 @@ import asyncio
 import typing
 import http
 
-if typing.TYPE_CHECKING:
+if typing.TYPE_CHECKING:  # pragma: no cover
     from . import initials
     from . import writers
 

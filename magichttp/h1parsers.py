@@ -56,12 +56,10 @@ def is_chunked_body(te_header_bytes: bytes) -> bool:
         i.strip().lower() for i in te_header_bytes.split(b";")
         if i]
 
-    if not te_header_bytes:
-        return False
-
     last_piece = te_header_pieces.pop(-1)
 
-    if b"identity" in te_header_pieces:
+    if (b"identity" == last_piece and te_header_pieces) or \
+            b"identity" in te_header_pieces:
         raise InvalidTransferEncoding(
             "Identity is not the only transfer encoding.")
 

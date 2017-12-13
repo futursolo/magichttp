@@ -21,7 +21,7 @@ import abc
 import asyncio
 import typing
 
-if typing.TYPE_CHECKING:
+if typing.TYPE_CHECKING:  # pragma: no cover
     from . import initials
     from . import readers
 

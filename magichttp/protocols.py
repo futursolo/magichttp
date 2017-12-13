@@ -25,7 +25,7 @@ import asyncio
 import abc
 import typing
 
-if typing.TYPE_CHECKING:
+if typing.TYPE_CHECKING:  # pragma: no cover
     from . import writers
 
 __all__ = [

@@ -28,7 +28,7 @@ import abc
 import asyncio
 
 
-if typing.TYPE_CHECKING:
+if typing.TYPE_CHECKING:  # pragma: no cover
     from . import constants
 
     import http
