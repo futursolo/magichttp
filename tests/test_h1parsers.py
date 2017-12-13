@@ -27,11 +27,11 @@ import http
 
 class H1RequestParserTestCase:
     def test_init(self):
-        parser = H1RequestParser(bytearray(), using_https=False)
+        parser = H1RequestParser(bytearray())
 
     def test_simple_request(self):
         buf = bytearray(b"G")
-        parser = H1RequestParser(buf, using_https=False)
+        parser = H1RequestParser(buf)
 
         req = parser.parse_request()
 
@@ -54,15 +54,16 @@ class H1RequestParserTestCase:
         assert req.uri == b"/"
         assert req.method == HttpRequestMethod.Get
         assert not hasattr(req, "authority")
-        assert req.scheme == b"http"
+        assert not hasattr(req, "scheme")
 
         assert parser.parse_body() is None
 
     def test_simple_request_with_body(self):
         buf = bytearray(
             b"POST / HTTP/1.1\r\nContent-Length: 20\r\n"
-            b"Host: localhost\r\nTransfer-Encoding: Identity\r\n\r\n")
-        parser = H1RequestParser(buf, using_https=True)
+            b"Host: localhost\r\nTransfer-Encoding: Identity\r\n"
+            b"X-Scheme: HTTP\r\n\r\n")
+        parser = H1RequestParser(buf)
 
         req = parser.parse_request()
 
@@ -73,7 +74,7 @@ class H1RequestParserTestCase:
         assert req.uri == b"/"
         assert req.method == HttpRequestMethod.Post
         assert req.authority == b"localhost"
-        assert req.scheme == b"https"
+        assert req.scheme.lower() == b"http"
 
         assert parser.parse_body() == b""
 
@@ -94,21 +95,21 @@ class H1RequestParserTestCase:
     def test_malformed_request(self):
         buf = bytearray(b"GET / HTTP/3.0\r\n\r\n")
 
-        parser = H1RequestParser(buf, using_https=False)
+        parser = H1RequestParser(buf)
 
         with pytest.raises(UnparsableHttpMessage):
             parser.parse_request()
 
         buf = bytearray(b"GET / HTTP/1.1\r\nContent-Length\r\n\r\n")
 
-        parser = H1RequestParser(buf, using_https=False)
+        parser = H1RequestParser(buf)
 
         with pytest.raises(UnparsableHttpMessage):
             parser.parse_request()
 
         buf = bytearray(b"GET / HTTP/1.1\r\nContent-Length: ABC\r\n\r\n")
 
-        parser = H1RequestParser(buf, using_https=False)
+        parser = H1RequestParser(buf)
 
         with pytest.raises(UnparsableHttpMessage):
             parser.parse_request()
@@ -116,7 +117,7 @@ class H1RequestParserTestCase:
         buf = bytearray(
             b"GET / HTTP/1.1\r\nTransfer-Encoding: Identity; Chunked\r\n\r\n")
 
-        parser = H1RequestParser(buf, using_https=False)
+        parser = H1RequestParser(buf)
 
         with pytest.raises(UnparsableHttpMessage):
             parser.parse_request()
@@ -124,7 +125,7 @@ class H1RequestParserTestCase:
         buf = bytearray(
             b"GET / HTTP/1.1\r\nTransfer-Encoding: Chunked; Gzip\r\n\r\n")
 
-        parser = H1RequestParser(buf, using_https=False)
+        parser = H1RequestParser(buf)
 
         with pytest.raises(UnparsableHttpMessage):
             parser.parse_request()
@@ -132,7 +133,7 @@ class H1RequestParserTestCase:
         buf = bytearray(
             b"GET / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\ng\r\n\r\n")
 
-        parser = H1RequestParser(buf, using_https=False)
+        parser = H1RequestParser(buf)
         parser.parse_request()
 
         with pytest.raises(UnparsableHttpMessage):
@@ -140,7 +141,7 @@ class H1RequestParserTestCase:
 
         buf = bytearray(b"GET / HTTP/1.1\r\n\r")
 
-        parser = H1RequestParser(buf, using_https=False)
+        parser = H1RequestParser(buf)
         parser.buf_ended = True
 
         with pytest.raises(IncompleteHttpMessage):
@@ -148,7 +149,7 @@ class H1RequestParserTestCase:
 
         buf = bytearray(b"GET / HTTP/1.1\r\nContent-Length:20\r\n\r\n")
 
-        parser = H1RequestParser(buf, using_https=False)
+        parser = H1RequestParser(buf)
         parser.buf_ended = True
 
         parser.parse_request()
@@ -159,7 +160,7 @@ class H1RequestParserTestCase:
         buf = bytearray(
             b"GET / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n0\r")
 
-        parser = H1RequestParser(buf, using_https=False)
+        parser = H1RequestParser(buf)
         parser.buf_ended = True
 
         parser.parse_request()
@@ -171,7 +172,7 @@ class H1RequestParserTestCase:
         buf = bytearray(
             b"GET / HTTP/1.1\r\n"
             b"Connection: Upgrade\r\n\r\n")
-        parser = H1RequestParser(buf, using_https=False)
+        parser = H1RequestParser(buf)
 
         req = parser.parse_request()
 
@@ -208,7 +209,7 @@ class H1RequestParserTestCase:
         buf = bytearray(
             b"POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n")
 
-        parser = H1RequestParser(buf, using_https=False)
+        parser = H1RequestParser(buf)
         assert parser.parse_request() is not None
 
         assert parser.parse_body() == b""

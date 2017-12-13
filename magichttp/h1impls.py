@@ -249,9 +249,6 @@ class BaseH1Impl(protocols.BaseHttpProtocolDelegate):
 
         self._max_initial_size = max_initial_size
 
-        self._using_https = self._transport.get_extra_info(
-            "sslcontext") is not None
-
         self._buf = bytearray()
 
         self._init_lock = asyncio.Lock()
@@ -378,8 +375,7 @@ class H1ServerStreamManager(
             max_initial_size: int) -> None:
         super().__init__(__impl, buf, max_initial_size)
 
-        self.__parser = h1parsers.H1RequestParser(
-            self._buf, using_https=self._impl._using_https)
+        self.__parser = h1parsers.H1RequestParser(self._buf)
         self.__composer = h1composers.H1ResponseComposer()
 
         self.__reader: Optional[readers.HttpRequestReader] = None
@@ -597,8 +593,7 @@ class H1ClientStreamManager(
 
         self._http_version = http_version
 
-        self.__composer = h1composers.H1RequestComposer(
-            self._impl._using_https)
+        self.__composer = h1composers.H1RequestComposer()
         self.__parser = h1parsers.H1ResponseParser(self._buf)
 
         self.__writer: Optional[writers.HttpRequestWriter] = None

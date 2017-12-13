@@ -19,6 +19,7 @@ from typing import Optional, Mapping, MutableMapping, Union, Iterable, Tuple
 
 from . import initials
 from . import constants
+from . import h1parsers
 from . import _version
 
 import abc
@@ -40,44 +41,13 @@ class IncomposableHttpInitial(ValueError):
     pass
 
 
-class HttpRequestInitialRequiredForComposing(ValueError):
-    """
-    The Request Initial is required for composing.
-    """
-    pass
-
-
 class BaseH1Composer(abc.ABC):
-    __slots__ = ("_using_https", "_using_chunked_body", "_finished")
+    __slots__ = ("_using_chunked_body", "_finished")
 
     def __init__(self) -> None:
         self._using_chunked_body: Optional[bool] = None
 
         self._finished = False
-
-    def _decide_body_by_transfer_encoding(
-            self, transfer_encoding_bytes: bytes) -> None:
-        transfer_encoding_list = [
-            i.strip().lower() for i in transfer_encoding_bytes.split(b";")
-            if i]
-
-        last_transfer_encoding = transfer_encoding_list[-1]
-
-        if b"identity" in transfer_encoding_list:
-            if len(transfer_encoding_list) > 1:
-                raise IncomposableHttpInitial(
-                    "Identity is not the only transfer encoding.")
-
-        elif b"chunked" in transfer_encoding_list:
-            if last_transfer_encoding != b"chunked":
-                raise IncomposableHttpInitial(
-                    "Chunked transfer encoding found, "
-                    "but not at last.")
-
-            else:
-                self._using_chunked_body = True
-
-        self._using_chunked_body = False
 
     def _compose_initial_bytes(
         self, *first_line_args: bytes,
@@ -125,11 +95,6 @@ class BaseH1Composer(abc.ABC):
 
 
 class H1RequestComposer(BaseH1Composer):
-    def __init__(self, using_https: bool=False) -> None:
-        super().__init__()
-
-        self._using_https = using_https
-
     def compose_request(
         self, method: constants.HttpRequestMethod, *,
         uri: bytes, authority: Optional[bytes],
@@ -157,8 +122,13 @@ class H1RequestComposer(BaseH1Composer):
                 refined_headers[b"connection"] = b"Close"
 
         if b"transfer-encoding" in refined_headers.keys():
-            self._decide_body_by_transfer_encoding(
-                refined_headers[b"transfer-encoding"])
+            try:
+                self._using_chunked_body = h1parsers.is_chunked_body(
+                    refined_headers[b"transfer-encoding"])
+
+            except h1parsers.InvalidTransferEncoding as e:
+                raise IncomposableHttpInitial(
+                    "Transfer Encoding is invalid.") from e
 
         else:
             self._using_chunked_body = False
@@ -174,8 +144,7 @@ class H1RequestComposer(BaseH1Composer):
             version=version,
             uri=uri,
             authority=authority,
-            scheme=scheme or (
-                b"https" if self._using_https else b"http"),
+            scheme=scheme,
             headers=refined_headers)
 
         return (refined_initial, self._compose_initial_bytes(
@@ -192,13 +161,11 @@ class H1ResponseComposer(BaseH1Composer):
         assert self._using_chunked_body is None, "Composers are not reusable."
 
         if req_initial is None:
-            if status_code < 400:
-                raise HttpRequestInitialRequiredForComposing(
-                    "req_initial is required for "
-                    "a status code less than 400.")
+            assert status_code >= 400, \
+                ("req_initial is required for "
+                 "a status code less than 400.")
 
-            else:
-                version = constants.HttpVersion.V1_1
+            version = constants.HttpVersion.V1_1
 
         else:
             version = req_initial.version
@@ -230,8 +197,13 @@ class H1ResponseComposer(BaseH1Composer):
                 refined_headers[b"connection"] = b"Keep-Alive"
 
         if b"transfer-encoding" in refined_headers.keys():
-            self._decide_body_by_transfer_encoding(
-                refined_headers[b"transfer-encoding"])
+            try:
+                self._using_chunked_body = h1parsers.is_chunked_body(
+                    refined_headers[b"transfer-encoding"])
+
+            except h1parsers.InvalidTransferEncoding as e:
+                raise IncomposableHttpInitial(
+                    "Transfer Encoding is invalid.") from e
 
         elif b"content-length" in refined_headers.keys():
             self._using_chunked_body = False

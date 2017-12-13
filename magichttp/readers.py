@@ -152,7 +152,7 @@ class RequestInitialMalformedError(ReceivedDataMalformedError):
             headers=headers)
 
 
-class BaseHttpStreamReaderDelegate(abc.ABC):
+class BaseHttpStreamReaderDelegate(abc.ABC):  # pragma: no cover
     @abc.abstractmethod
     def pause_reading(self) -> None:
         raise NotImplementedError
@@ -406,7 +406,8 @@ class BaseHttpStreamReader(abc.ABC):
         self._delegate.abort()
 
 
-class HttpRequestReaderDelegate(BaseHttpStreamReaderDelegate):
+class HttpRequestReaderDelegate(
+        BaseHttpStreamReaderDelegate):  # pragma: no cover
     @abc.abstractmethod
     def write_response(
         self, status_code: http.HTTPStatus, *,

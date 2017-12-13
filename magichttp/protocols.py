@@ -38,7 +38,7 @@ _HeaderType = Union[
     Iterable[Tuple[bytes, bytes]]]
 
 
-class BaseHttpProtocolDelegate(abc.ABC):
+class BaseHttpProtocolDelegate(abc.ABC):  # pragma: nocover
     @abc.abstractmethod
     def __init__(
             self, protocol: "BaseHttpProtocol", max_initial_size: int) -> None:
@@ -150,7 +150,7 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
         self._conn_lost.set()
 
 
-class HttpServerProtocolDelegate(BaseHttpProtocolDelegate):
+class HttpServerProtocolDelegate(BaseHttpProtocolDelegate):  # pragma: no cover
     @abc.abstractmethod
     def __init__(
         self, protocol: "HttpServerProtocol",
@@ -194,7 +194,7 @@ class HttpServerProtocol(
             raise StopAsyncIteration from e
 
 
-class HttpClientProtocolDelegate(BaseHttpProtocolDelegate):
+class HttpClientProtocolDelegate(BaseHttpProtocolDelegate):  # pragma: no cover
     @abc.abstractmethod
     def __init__(
         self, protocol: "HttpClientProtocol", max_initial_size: int,

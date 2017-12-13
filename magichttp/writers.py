@@ -56,7 +56,7 @@ class WriteAbortedError(BaseWriteException):
     pass
 
 
-class BaseHttpStreamWriterDelegate(abc.ABC):
+class BaseHttpStreamWriterDelegate(abc.ABC):  # pragma: no cover
     @abc.abstractmethod
     def write_data(self, data: bytes, finished: bool=False) -> None:
         raise NotImplementedError
@@ -173,7 +173,8 @@ class BaseHttpStreamWriter(abc.ABC):
         self._delegate.abort()
 
 
-class HttpRequestWriterDelegate(BaseHttpStreamWriterDelegate):
+class HttpRequestWriterDelegate(
+        BaseHttpStreamWriterDelegate):  # pragma: no cover
     @abc.abstractmethod
     async def read_response(self) -> "readers.HttpResponseReader":
         raise NotImplementedError
