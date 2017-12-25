@@ -57,6 +57,7 @@ class BaseH1StreamManager(
         self._read_ended = False
 
         self._writer_ready = asyncio.Event()
+        self._write_chunked_body: Optional[bool] = None
         self._write_exc: Optional[writers.BaseWriteException] = None
         self._write_finished = False
 
@@ -124,11 +125,6 @@ class BaseH1StreamManager(
 
     @property
     @abc.abstractmethod
-    def _composer(self) -> h1composers.BaseH1Composer:
-        raise NotImplementedError
-
-    @property
-    @abc.abstractmethod
     def _reader(self) -> Optional[readers.BaseHttpStreamReader]:
         raise NotImplementedError
 
@@ -189,13 +185,16 @@ class BaseH1StreamManager(
         self._impl.pause_reading()
 
     def write_data(self, data: bytes, finished: bool=False) -> None:
+        assert self._write_chunked_body is not None, \
+            "Please write initials before their body."
         if self._write_finished:
             if self._write_exc:
                 raise self._write_exc
 
             raise writers.WriteAfterFinishedError
 
-        data = self._composer.compose_body(data, finished=finished)
+        if self._write_chunked_body:
+            data = h1composers.compose_chunked_body(data, finished=finished)
 
         try:
             self._transport.write(data)
@@ -376,7 +375,6 @@ class H1ServerStreamManager(
         super().__init__(__impl, buf, max_initial_size)
 
         self.__parser = h1parsers.H1RequestParser(self._buf)
-        self.__composer = h1composers.H1ResponseComposer()
 
         self.__reader: Optional[readers.HttpRequestReader] = None
         self.__writer: Optional[writers.HttpResponseWriter] = None
@@ -386,10 +384,6 @@ class H1ServerStreamManager(
     @property
     def _parser(self) -> h1parsers.H1RequestParser:
         return self.__parser
-
-    @property
-    def _composer(self) -> h1composers.H1ResponseComposer:
-        return self.__composer
 
     @property
     def _reader(self) -> Optional[readers.HttpRequestReader]:
@@ -521,11 +515,18 @@ class H1ServerStreamManager(
             raise self._write_exc
 
         initial, initial_bytes = \
-            self._composer.compose_response(
+            h1composers.compose_response_initial(
                 status_code=status_code, headers=headers,
                 req_initial=self._reader.initial if self._reader else None)
 
         try:
+            if b"transfer-encoding" not in initial.headers.keys():
+                self._write_chunked_body = False
+
+            else:
+                self._write_chunked_body = h1parsers.is_chunked_body(
+                    initial.headers[b"transfer-encoding"])
+
             self._transport.write(initial_bytes)
 
         except Exception as e:
@@ -593,7 +594,6 @@ class H1ClientStreamManager(
 
         self._http_version = http_version
 
-        self.__composer = h1composers.H1RequestComposer()
         self.__parser = h1parsers.H1ResponseParser(self._buf)
 
         self.__writer: Optional[writers.HttpRequestWriter] = None
@@ -602,10 +602,6 @@ class H1ClientStreamManager(
     @property
     def _parser(self) -> h1parsers.H1ResponseParser:
         return self.__parser
-
-    @property
-    def _composer(self) -> h1composers.H1RequestComposer:
-        return self.__composer
 
     @property
     def _reader(self) -> Optional[readers.HttpResponseReader]:
@@ -725,12 +721,19 @@ class H1ClientStreamManager(
             raise self._write_exc
 
         initial, initial_bytes = \
-            self._composer.compose_request(
+            h1composers.compose_request_initial(
                 method=method, uri=uri, authority=authority,
                 version=self._http_version,
                 scheme=scheme, headers=headers)
 
         try:
+            if b"transfer-encoding" not in initial.headers.keys():
+                self._write_chunked_body = False
+
+            else:
+                self._write_chunked_body = h1parsers.is_chunked_body(
+                    initial.headers[b"transfer-encoding"])
+
             self._transport.write(initial_bytes)
 
         except Exception as e:

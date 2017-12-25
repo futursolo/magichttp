@@ -15,19 +15,14 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from magichttp.h1composers import H1RequestComposer, H1ResponseComposer
-
+from magichttp.h1composers import compose_request_initial, \
+    compose_response_initial, compose_chunked_body
 from magichttp import HttpRequestMethod, HttpVersion, __version__
 
 
-class H1RequestComposerTestCase:
-    def test_init(self):
-        composer = H1RequestComposer()
-
+class ComposeRequestInitialTestCase:
     def test_simple_request(self):
-        composer = H1RequestComposer()
-
-        req, req_bytes = composer.compose_request(
+        req, req_bytes = compose_request_initial(
             method=HttpRequestMethod.Get,
             version=HttpVersion.V1_1,
             uri=b"/",
@@ -48,10 +43,3 @@ class H1RequestComposerTestCase:
             b"GET / HTTP/1.1\r\n" +
             b"User-Agent: magichttp/%s\r\n" % __version__.encode() +
             b"Accept: */*\r\nConnection: Keep-Alive\r\n\r\n")
-
-        assert composer.compose_body(b"", finished=True) == b""
-
-
-class H1ResponseComposerTestCase:
-    def test_init(self):
-        composer = H1ResponseComposer()
