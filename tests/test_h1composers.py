@@ -17,7 +17,11 @@
 
 from magichttp.h1composers import compose_request_initial, \
     compose_response_initial, compose_chunked_body
-from magichttp import HttpRequestMethod, HttpVersion, __version__
+from magichttp import HttpRequestMethod, HttpVersion, __version__, \
+    HttpRequestInitial
+
+import http
+import magicdict
 
 
 class ComposeRequestInitialTestCase:
@@ -43,3 +47,55 @@ class ComposeRequestInitialTestCase:
             b"GET / HTTP/1.1\r\n" +
             b"User-Agent: magichttp/%s\r\n" % __version__.encode() +
             b"Accept: */*\r\nConnection: Keep-Alive\r\n\r\n")
+
+    def test_http_10_request(self):
+        req, req_bytes = compose_request_initial(
+            method=HttpRequestMethod.Get,
+            version=HttpVersion.V1_0,
+            uri=b"/",
+            authority=b"localhost",
+            scheme=b"http",
+            headers=None)
+
+        assert req.version == HttpVersion.V1_0
+        assert req.uri == b"/"
+        assert req.authority == b"localhost"
+        assert req.scheme ==  b"http"
+        assert req.headers == {
+            b"user-agent": b"magichttp/%s" % __version__.encode(),
+            b"accept": b"*/*",
+            b"connection": b"Close",
+            b"host": b"localhost",
+            b"x-scheme": b"http",}
+
+        assert req_bytes == (
+            b"GET / HTTP/1.0\r\n" +
+            b"User-Agent: magichttp/%s\r\n" % __version__.encode() +
+            b"Accept: */*\r\nConnection: Close\r\n" +
+            b"Host: localhost\r\nX-Scheme: http\r\n\r\n")
+
+
+class ComposeResponseInitialTestCase:
+    def test_simple_response(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.Get,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=b"http",
+            headers=magicdict.TolerantMagicDict(),
+            authority=None)
+
+        res, res_bytes = compose_response_initial(
+            http.HTTPStatus.OK, headers=None, req_initial=req)
+
+        assert res.status_code == 200
+        assert res.headers == {
+            b"server": b"magichttp/%s" % __version__.encode(),
+            b"connection": b"Close",
+            b"transfer-encoding": b"Chunked"}
+
+        assert res_bytes == (
+            b"HTTP/1.1 200 OK\r\n" +
+            b"Server: magichttp/%s\r\n" % __version__.encode() +
+            b"Connection: Close\r\n" +
+            b"Transfer-Encoding: Chunked\r\n\r\n")
