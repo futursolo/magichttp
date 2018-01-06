@@ -9,7 +9,7 @@ name = "pypi"
 
 pytest = "*"
 mypy = "*"
-pycodestyle = "*"
+flake8 = "*"
 
 
 [packages]

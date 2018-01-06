@@ -17,16 +17,14 @@
 
 from typing import Union, Mapping, Iterable, Tuple, Optional, Any
 
-from . import constants
-
 import abc
 import asyncio
 import typing
 import http
 
 if typing.TYPE_CHECKING:  # pragma: no cover
-    from . import initials
-    from . import writers
+    from . import initials  # noqa: F401
+    from . import writers  # noqa: F401
 
 __all__ = [
     "EntityTooLargeError",

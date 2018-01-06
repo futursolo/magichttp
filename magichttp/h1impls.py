@@ -29,9 +29,9 @@ import asyncio
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover
-    from . import constants
+    from . import constants  # noqa: F401
 
-    import http
+    import http  # noqa: F401
 
 _HeaderType = Union[
     Mapping[bytes, bytes],

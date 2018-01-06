@@ -22,8 +22,8 @@ import asyncio
 import typing
 
 if typing.TYPE_CHECKING:  # pragma: no cover
-    from . import initials
-    from . import readers
+    from . import initials  # noqa: F401
+    from . import readers  # noqa: F401
 
 __all__ = [
     "WriteAfterFinishedError",

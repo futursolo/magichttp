@@ -18,8 +18,6 @@
 from setuptools import setup, find_packages
 from pip.req import parse_requirements
 
-import importlib
-import os
 import sys
 
 if not sys.version_info[:3] >= (3, 6, 0):
@@ -46,7 +44,8 @@ install_requirements = [
     str(r.req) for r in parse_requirements("requirements.txt", session=False)]
 
 test_requirements = [
-    str(r.req) for r in parse_requirements("dev-requirements.txt", session=False)]
+    str(r.req) for r in parse_requirements(
+        "dev-requirements.txt", session=False)]
 
 if __name__ == "__main__":
     setup(

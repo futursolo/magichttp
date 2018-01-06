@@ -60,13 +60,13 @@ class ComposeRequestInitialTestCase:
         assert req.version == HttpVersion.V1_0
         assert req.uri == b"/"
         assert req.authority == b"localhost"
-        assert req.scheme ==  b"http"
+        assert req.scheme == b"http"
         assert req.headers == {
             b"user-agent": b"magichttp/%s" % __version__.encode(),
             b"accept": b"*/*",
             b"connection": b"Close",
             b"host": b"localhost",
-            b"x-scheme": b"http",}
+            b"x-scheme": b"http"}
 
         assert req_bytes == (
             b"GET / HTTP/1.0\r\n" +

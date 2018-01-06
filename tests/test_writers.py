@@ -118,7 +118,6 @@ class HttpRequestWriterTestCase:
         with pytest.raises(WriteAbortedError):
             await writer.flush()
 
-
     @helper.run_async_test
     async def test_finish(self):
         mock = HttpWriterDelegateMock()

@@ -15,13 +15,14 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from typing import List, Optional, Set
+from typing import Optional, Set
 
 import asyncio
 import magichttp
 import weakref
 
 import traceback
+
 
 class _EchoServerProtocol(magichttp.HttpServerProtocol):
     __slots__ = magichttp.HttpServerProtocol.__slots__ + ("conn_made_fur",)

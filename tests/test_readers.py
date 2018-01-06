@@ -43,10 +43,10 @@ class ReaderDelegateMock(
 
 class HttpRequestReaderTestCase:
     def test_init(self):
-        reader = HttpRequestReader(object(), initial=object())
+        HttpRequestReader(object(), initial=object())
 
 
 class HttpResponseReaderTestCase:
     def test_init(self):
-        reader = HttpResponseReader(
+        HttpResponseReader(
             object(), initial=object(), writer=object())

@@ -26,7 +26,7 @@ import abc
 import typing
 
 if typing.TYPE_CHECKING:  # pragma: no cover
-    from . import writers
+    from . import writers  # noqa: F401
 
 __all__ = [
     "BaseHttpProtocol",

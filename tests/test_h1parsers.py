@@ -27,7 +27,7 @@ import http
 
 class H1RequestParserTestCase:
     def test_init(self):
-        parser = H1RequestParser(bytearray())
+        H1RequestParser(bytearray())
 
     def test_simple_request(self):
         buf = bytearray(b"G")
@@ -246,7 +246,7 @@ class H1RequestParserTestCase:
 
 class H1ResponseParserTestCase:
     def test_init(self):
-        parser = H1ResponseParser(bytearray())
+        H1ResponseParser(bytearray())
 
     def test_simple_response(self):
         req = HttpRequestInitial(
@@ -414,7 +414,6 @@ class H1ResponseParserTestCase:
         buf += b"\n"
 
         assert parser.parse_body() is None
-
 
     def test_upgrade_request(self):
         req = HttpRequestInitial(

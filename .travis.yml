@@ -43,7 +43,7 @@ install:
 # command to run tests
 script:
   - mypy --python-version 3.6 --disallow-untyped-calls --disallow-untyped-defs --warn-unused-ignores --show-traceback --strict-optional --ignore-missing-imports --show-error-context --show-traceback -p magichttp
-  - pycodestyle --show-source magichttp
+  - flake8 .
   - coverage run --source=magichttp setup.py test
 
 after_success:

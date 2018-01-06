@@ -15,19 +15,17 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from typing import Optional, Mapping, MutableMapping, Union, Iterable, Tuple
+from typing import Optional, Mapping, Union, Iterable, Tuple
 
 from . import initials
 from . import constants
-from . import h1parsers
 from . import _version
 
-import abc
 import magicdict
 import typing
 
 if typing.TYPE_CHECKING:  # pragma: no cover
-    import http
+    import http  # noqa: F401
 
 _SELF_IDENTIFIER = f"magichttp/{_version.__version__}".encode()
 
