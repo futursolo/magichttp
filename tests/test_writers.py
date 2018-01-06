@@ -18,7 +18,7 @@
 from magichttp import HttpRequestWriter, HttpResponseWriter
 from magichttp.writers import HttpRequestWriterDelegate, \
     HttpResponseWriterDelegate
-from magichttp import WriteAfterFinishedError
+from magichttp import WriteAfterFinishedError, WriteAbortedError
 
 from _helper import TestHelper
 
@@ -44,13 +44,21 @@ class HttpWriterDelegateMock(
 
         self.reader_mock = None
 
+        self._exc = None
+
     def write_data(self, data, finished):
         self.write_called = True
         self.data_pieces.append(data)
         self.finished = finished
 
+        if self._exc:
+            raise self._exc
+
     async def flush_buf(self):
         await self.flush_event.wait()
+
+        if self._exc:
+            raise self._exc
 
     def abort(self):
         self.aborted = True
@@ -82,6 +90,34 @@ class HttpRequestWriterTestCase:
         writer.finish()
         with pytest.raises(WriteAfterFinishedError):
             writer.write(os.urandom(1))
+
+    def test_write_err(self):
+        mock = HttpWriterDelegateMock()
+        writer = HttpRequestWriter(mock, initial=object())
+
+        mock._exc = WriteAbortedError()
+
+        with pytest.raises(WriteAbortedError):
+            writer.write(os.urandom(1))
+
+        with pytest.raises(WriteAbortedError):
+            writer.write(os.urandom(1))
+
+    @helper.run_async_test
+    async def test_flush_err(self):
+        mock = HttpWriterDelegateMock()
+        writer = HttpRequestWriter(mock, initial=object())
+
+        mock.flush_event.set()
+
+        mock._exc = WriteAbortedError()
+
+        with pytest.raises(WriteAbortedError):
+            await writer.flush()
+
+        with pytest.raises(WriteAbortedError):
+            await writer.flush()
+
 
     @helper.run_async_test
     async def test_finish(self):
@@ -118,7 +154,26 @@ class HttpRequestWriterTestCase:
 
         await tsk
 
+        await writer.flush()
+
+        writer.finish()
+
+        with pytest.raises(WriteAfterFinishedError):
+            writer.finish(os.urandom(1))
+
         assert event_time < finish_time
+
+    def test_finish_err(self):
+        mock = HttpWriterDelegateMock()
+        writer = HttpRequestWriter(mock, initial=object())
+
+        mock._exc = WriteAbortedError()
+
+        with pytest.raises(WriteAbortedError):
+            writer.finish()
+
+        with pytest.raises(WriteAbortedError):
+            writer.finish()
 
     @helper.run_async_test
     async def test_flush(self):
@@ -162,6 +217,19 @@ class HttpRequestWriterTestCase:
         writer = HttpRequestWriter(object(), initial=initial_mock)
 
         assert initial_mock is writer.initial
+
+    @helper.run_async_test
+    async def test_read_response(self):
+        mock = HttpWriterDelegateMock()
+        writer = HttpRequestWriter(mock, initial=object())
+
+        with pytest.raises(AttributeError):
+            writer.reader
+
+        reader = await writer.read_response()
+
+        assert reader is mock.reader_mock
+        assert writer.reader is reader
 
 
 class HttpResponseWriterTestCase:

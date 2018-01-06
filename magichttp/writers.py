@@ -121,7 +121,7 @@ class BaseHttpStreamWriter(abc.ABC):
             try:
                 await self._delegate.flush_buf()
 
-            except asyncio.CancelledError:
+            except asyncio.CancelledError:  # pragma: no cover
                 raise
 
             except BaseWriteException as e:
