@@ -257,7 +257,7 @@ class BaseHttpStreamReader(abc.ABC):
 
                 raise ReadFinishedError
 
-        except asyncio.CancelledError:
+        except asyncio.CancelledError:  # pragma: no cover
             raise
 
         finally:
@@ -274,8 +274,6 @@ class BaseHttpStreamReader(abc.ABC):
         When :func:`.finished()` is `True`, this method will raise any errors
         occurred during the read or an :class:`ReadFinishedError`.
         """
-        if n == 0:
-            return b""
 
         async with self._read_lock:
             if self.finished():
@@ -283,6 +281,9 @@ class BaseHttpStreamReader(abc.ABC):
                     raise self._exc
 
                 raise ReadFinishedError
+
+            if n == 0:
+                return b""
 
             if exactly:
                 if n < 0:
@@ -294,7 +295,7 @@ class BaseHttpStreamReader(abc.ABC):
                     try:
                         await self._wait_for_data()
 
-                    except asyncio.CancelledError:
+                    except asyncio.CancelledError:  # pragma: no cover
                         raise
 
                     except Exception as e:
@@ -308,7 +309,7 @@ class BaseHttpStreamReader(abc.ABC):
                     try:
                         await self._wait_for_data()
 
-                    except asyncio.CancelledError:
+                    except asyncio.CancelledError:  # pragma: no cover
                         raise
 
                     except Exception:

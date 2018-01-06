@@ -19,6 +19,11 @@ from magichttp.readers import HttpRequestReaderDelegate, \
     HttpResponseReaderDelegate
 from magichttp import HttpRequestReader, HttpResponseReader
 
+from _helper import TestHelper
+
+
+helper = TestHelper()
+
 
 class ReaderDelegateMock(
         HttpRequestReaderDelegate, HttpResponseReaderDelegate):
@@ -44,6 +49,11 @@ class ReaderDelegateMock(
 class HttpRequestReaderTestCase:
     def test_init(self):
         HttpRequestReader(object(), initial=object())
+
+    @helper.run_async_test
+    async def test_read(self):
+        reader = HttpRequestReader(ReaderDelegateMock(), initial=object())
+        await reader.read(0)
 
 
 class HttpResponseReaderTestCase:
