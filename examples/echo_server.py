@@ -25,7 +25,7 @@ import traceback
 
 
 class _EchoServerProtocol(magichttp.HttpServerProtocol):
-    __slots__ = magichttp.HttpServerProtocol.__slots__ + ("conn_made_fur",)
+    __slots__ = ("conn_made_fur",)
 
     def __init__(self) -> None:
         super().__init__()

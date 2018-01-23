@@ -65,8 +65,7 @@ class RequestInitialTooLargeError(EntityTooLargeError):
     The incoming initial is too large.
     """
     def __init__(
-        self, __delegate: "HttpRequestReaderDelegate",
-            *args: Any) -> None:
+            self, __delegate: "HttpRequestReaderDelegate", *args: Any) -> None:
         super().__init__(*args)
 
         self._delegate = __delegate
@@ -133,8 +132,7 @@ class RequestInitialMalformedError(ReceivedDataMalformedError):
     The request initial is malformed.
     """
     def __init__(
-        self, __delegate: "HttpRequestReaderDelegate",
-            *args: Any) -> None:
+            self, __delegate: "HttpRequestReaderDelegate", *args: Any) -> None:
         super().__init__(*args)
 
         self._delegate = __delegate
@@ -166,9 +164,8 @@ class BaseHttpStreamReaderDelegate(abc.ABC):  # pragma: no cover
 
 class BaseHttpStreamReader(abc.ABC):
     __slots__ = (
-        "_delegate", "__delegate", "_max_buf_len", "_buf",
-        "_wait_for_data_fur", "_read_lock", "_end_appended", "_exc",
-        "_max_buf_len_changed_fur", "_initial", "_writer")
+        "_delegate", "_max_buf_len", "_buf",
+        "_wait_for_data_fur", "_read_lock", "_end_appended", "_exc")
 
     def __init__(
             self, __delegate: BaseHttpStreamReaderDelegate) -> None:
@@ -183,31 +180,15 @@ class BaseHttpStreamReader(abc.ABC):
         self._end_appended = asyncio.Event()
         self._exc: Optional[BaseReadException] = None
 
-        self._max_buf_len_changed_fur: Optional["asyncio.Future[None]"] = \
-            asyncio.Future()
+    def _append_data(self, data: Union[bytes, bytearray, memoryview]) -> None:
+        assert not self._end_appended.is_set(), "Append data after ended."
 
-    @property
-    def max_buf_len(self) -> int:
-        return self._max_buf_len
-
-    @max_buf_len.setter
-    def max_buf_len(self, new_max_buf_len: int) -> None:
-        self._max_buf_len = new_max_buf_len
-
-        if self._max_buf_len_changed_fur is not None and \
-                not self._max_buf_len_changed_fur.done():
-            self._max_buf_len_changed_fur.set_result(None)
-
-    def buf_len(self) -> int:
-        return len(self._buf)
-
-    def _append_data(self, data: bytes) -> None:
-        if not data:
+        if not data:  # pragma: no cover
             return
 
-        self._buf += data
+        self._buf += data  # type: ignore
 
-        if self.buf_len() >= self.max_buf_len:
+        if len(self) >= self.max_buf_len:
             self._delegate.pause_reading()
 
         if self._wait_for_data_fur is not None and \
@@ -215,10 +196,11 @@ class BaseHttpStreamReader(abc.ABC):
             self._wait_for_data_fur.set_result(None)
 
     def _append_end(self, exc: Optional[BaseReadException]) -> None:
-        if self._end_appended.is_set():
+        if self._end_appended.is_set():  # pragma: no cover
             return
 
-        self._exc = exc
+        if exc:
+            self._exc = exc
 
         self._end_appended.set()
 
@@ -226,72 +208,83 @@ class BaseHttpStreamReader(abc.ABC):
                 not self._wait_for_data_fur.done():
             self._wait_for_data_fur.set_result(None)
 
+    def _raise_exc_if_finished(self) -> None:
+        if not self.finished():
+            return
+
+        if self._exc:
+            raise self._exc
+
+        raise ReadFinishedError
+
+    def _raise_exc_if_end_appended(self) -> None:
+        if not self._end_appended.is_set():
+            return
+
+        if self._exc:
+            raise self._exc
+
+        raise ReadFinishedError
+
     async def _wait_for_data(self) -> None:
-        if self._end_appended.is_set():
-            if self._exc is not None:
-                raise self._exc
-
-            raise ReadFinishedError
-
-        former_buf_len = self.buf_len()
+        self._raise_exc_if_end_appended()
 
         self._delegate.resume_reading()
 
-        self._max_buf_len_changed_fur = asyncio.Future()
         self._wait_for_data_fur = asyncio.Future()
         try:
-            done, pending = await asyncio.wait(
-                [self._wait_for_data_fur, self._max_buf_len_changed_fur],
-                return_when=asyncio.FIRST_COMPLETED)
+            await self._wait_for_data_fur
 
-            if self._max_buf_len_changed_fur.done():
-                return
-
-            if former_buf_len <= self.buf_len():
-                # New data has been appended.
-                return
-
-            if self._end_appended.is_set():
-                if self._exc is not None:
-                    raise self._exc
-
-                raise ReadFinishedError
+            self._raise_exc_if_end_appended()
 
         except asyncio.CancelledError:  # pragma: no cover
             raise
 
         finally:
-            self._max_buf_len_changed_fur = None
             self._wait_for_data_fur = None
+
+    @property
+    def max_buf_len(self) -> int:
+        return self._max_buf_len
+
+    @max_buf_len.setter
+    def max_buf_len(self, new_max_buf_len: int) -> None:
+        assert not self.busy(), \
+            "You cannot set max buffer length when the reader is busy."
+
+        self._max_buf_len = new_max_buf_len
+
+    def __len__(self) -> int:
+        return len(self._buf)
 
     async def read(self, n: int=-1, exactly: bool=False) -> bytes:
         """
         Read at most n bytes data or if exactly is `True`,
         read exactly n bytes data. If the end has been reached before
         the buffer has the length of data asked, it will
-        raise an :class:`HttpStreamReadUnsatisfiableError`.
+        raise an :class:`ReadUnsatisfiableError`.
 
         When :func:`.finished()` is `True`, this method will raise any errors
         occurred during the read or an :class:`ReadFinishedError`.
         """
-
         async with self._read_lock:
-            if self.finished():
-                if self._exc:
-                    raise self._exc
-
-                raise ReadFinishedError
+            self._raise_exc_if_finished()
 
             if n == 0:
                 return b""
 
             if exactly:
-                if n < 0:
+                if n < 0:  # pragma: no cover
                     raise ValueError(
                         "You MUST sepcify the length of the data "
                         "if exactly is True.")
 
-                while self.buf_len() < n:
+                if n > self.max_buf_len:  # pragma: no cover
+                    raise ValueError(
+                        "The length provided cannot be larger "
+                        "than the max buffer length.")
+
+                while len(self) < n:
                     try:
                         await self._wait_for_data()
 
@@ -303,7 +296,7 @@ class BaseHttpStreamReader(abc.ABC):
 
             elif n < 0:
                 while True:
-                    if self.buf_len() > self.max_buf_len:
+                    if len(self) > self.max_buf_len:
                         raise MaxBufferLengthReachedError
 
                     try:
@@ -318,7 +311,7 @@ class BaseHttpStreamReader(abc.ABC):
 
                         return data
 
-            elif self.buf_len() == 0:
+            elif len(self) == 0:
                 await self._wait_for_data()
 
             data = bytes(self._buf[0:n])
@@ -334,7 +327,7 @@ class BaseHttpStreamReader(abc.ABC):
 
         When the max size of the buffer has been reached,
         and the separator is not found, this method will raise
-        an :class:`MaxBufferSizeReachedError`.
+        an :class:`MaxBufferLengthReachedError`.
         Similarly, if the end has been reached before found the separator
         it will raise an `SeparatorNotFoundError`.
 
@@ -342,46 +335,49 @@ class BaseHttpStreamReader(abc.ABC):
         occurred during the read or an :class:`ReadFinishedError`.
         """
         async with self._read_lock:
-            if self.finished():
-                if self._exc:
-                    raise self._exc
-
-                raise ReadFinishedError
+            self._raise_exc_if_finished()
 
             start_pos = 0
 
             while True:
                 separator_pos = self._buf.find(separator, start_pos)
 
-                if separator_pos == -1:
-                    if self.buf_len() > self.max_buf_len:
-                        raise MaxBufferLengthReachedError
+                if separator_pos != -1:
+                    break
+
+                if len(self) > self.max_buf_len:
+                    raise MaxBufferLengthReachedError
+
+                try:
+                    await self._wait_for_data()
+
+                except asyncio.CancelledError:  # pragma: no cover
+                    raise
+
+                except Exception as e:
+                    if len(self) > 0:
+                        raise SeparatorNotFoundError from e
 
                     else:
-                        try:
-                            await self._wait_for_data()
+                        raise
 
-                        except Exception as e:
-                            if self.buf_len() > 0:
-                                raise SeparatorNotFoundError from e
+                new_start_pos = len(self) - len(separator)
 
-                            else:
-                                raise
+                if new_start_pos > 0:
+                    start_pos = new_start_pos
 
-                        new_start_pos = self.buf_len() - len(separator)
+            full_pos = separator_pos + len(separator)
 
-                        if new_start_pos > 0:
-                            start_pos = new_start_pos
+            if keep_separator:
+                data_pos = full_pos
 
-                        continue
+            else:
+                data_pos = separator_pos
 
-                if keep_separator:
-                    separator_pos += len(separator)
+            data = bytes(self._buf[0:data_pos])
+            del self._buf[0:full_pos]
 
-                data = bytes(self._buf[0:separator_pos])
-                del self._buf[0:separator_pos]
-
-                return data
+            return data
 
     def busy(self) -> bool:
         """
@@ -396,13 +392,15 @@ class BaseHttpStreamReader(abc.ABC):
         """
         Return True if the reader reached the end of the Request or Response.
         """
-        return self.buf_len() == 0 and self._end_appended.is_set()
+        return len(self) == 0 and self._end_appended.is_set()
 
     def abort(self) -> None:
         """
         Abort the reader without waiting for the end.
         """
         self._delegate.abort()
+
+        self._exc = ReadAbortedError()
 
 
 class HttpRequestReaderDelegate(
@@ -416,6 +414,8 @@ class HttpRequestReaderDelegate(
 
 
 class HttpRequestReader(BaseHttpStreamReader):
+    __slots__ = ("__delegate", "_initial", "_writer")
+
     def __init__(
         self, __delegate: HttpRequestReaderDelegate, *,
             initial: "initials.HttpRequestInitial") -> None:
@@ -454,11 +454,12 @@ class HttpResponseReaderDelegate(BaseHttpStreamReaderDelegate):
 
 
 class HttpResponseReader(BaseHttpStreamReader):
+    __slots__ = ("_initial", "_writer")
+
     def __init__(
         self, __delegate: HttpResponseReaderDelegate, *,
         initial: "initials.HttpResponseInitial",
             writer: "writers.HttpRequestWriter") -> None:
-        self._delegate: HttpResponseReaderDelegate
         super().__init__(__delegate)
 
         self._initial = initial

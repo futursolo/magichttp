@@ -104,7 +104,7 @@ class BaseH1Parser(abc.ABC):
     __slots__ = (
         "_buf", "_searched_len", "_body_len_left",
         "_body_chunk_len_left", "_body_chunk_crlf_dropped", "_finished",
-        "_incompleted_body", "buf_ended", "_exc")
+        "buf_ended", "_exc")
 
     def __init__(self, buf: bytearray) -> None:
         self._buf = buf
@@ -289,6 +289,8 @@ class BaseH1Parser(abc.ABC):
 
 
 class H1RequestParser(BaseH1Parser):
+    __slots__ = ()
+
     def _discover_body_length(
             self, initial: initials.HttpRequestInitial) -> None:
         if initial.headers.get_first(
@@ -372,6 +374,8 @@ class H1RequestParser(BaseH1Parser):
 
 
 class H1ResponseParser(BaseH1Parser):
+    __slots__ = ()
+
     def _discover_body_length(
         self, req_initial: initials.HttpRequestInitial,
             initial: initials.HttpResponseInitial) -> None:

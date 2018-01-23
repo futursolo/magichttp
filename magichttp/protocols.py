@@ -74,8 +74,7 @@ class BaseHttpProtocolDelegate(abc.ABC):  # pragma: nocover
 
 
 class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
-    __slots__ = (
-        "_drained_event", "_open_after_eof", "_transport", "__delegate")
+    __slots__ = ("_drained_event", "_open_after_eof", "_transport")
 
     _MAX_INITIAL_SIZE = 64 * 1024  # 64K
 
@@ -164,6 +163,8 @@ class HttpServerProtocolDelegate(BaseHttpProtocolDelegate):  # pragma: no cover
 
 class HttpServerProtocol(
         BaseHttpProtocol, AsyncIterator[readers.HttpRequestReader]):
+    __slots__ = ("__delegate",)
+
     def __init__(self) -> None:
         super().__init__()
 
@@ -211,7 +212,7 @@ class HttpClientProtocolDelegate(BaseHttpProtocolDelegate):  # pragma: no cover
 
 
 class HttpClientProtocol(BaseHttpProtocol):
-    __slots__ = BaseHttpProtocol.__slots__ + ("_http_version",)
+    __slots__ = ("__delegate", "_http_version")
 
     def __init__(
         self, *, http_version:

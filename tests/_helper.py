@@ -22,6 +22,8 @@ class TestHelper:
     def __init__(self):
         self.loop = asyncio.get_event_loop()
 
+        self.loop.set_debug(True)
+
     def run_async_test(self, coro_fn):
         async def test_coro(_self, *args, **kwargs):
             await asyncio.wait_for(

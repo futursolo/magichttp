@@ -71,9 +71,7 @@ class BaseHttpStreamWriterDelegate(abc.ABC):  # pragma: no cover
 
 
 class BaseHttpStreamWriter(abc.ABC):
-    __slots__ = (
-        "_delegate", "__delegate", "_flush_lock", "_finished", "_exc",
-        "_initial", "_reader")
+    __slots__ = ("_delegate", "_flush_lock", "_finished", "_exc")
 
     def __init__(self, __delegate: BaseHttpStreamWriterDelegate) -> None:
         self._delegate = __delegate
@@ -181,6 +179,8 @@ class HttpRequestWriterDelegate(
 
 
 class HttpRequestWriter(BaseHttpStreamWriter):
+    __slots__ = ("__delegate", "_initial", "_reader")
+
     def __init__(
         self, __delegate: HttpRequestWriterDelegate, *,
             initial: "initials.HttpRequestInitial") -> None:
@@ -213,6 +213,8 @@ class HttpResponseWriterDelegate(BaseHttpStreamWriterDelegate):
 
 
 class HttpResponseWriter(BaseHttpStreamWriter):
+    __slots__ = ("_initial", "_reader")
+
     def __init__(
         self, __delegate: HttpResponseWriterDelegate, *,
             initial: "initials.HttpResponseInitial",
