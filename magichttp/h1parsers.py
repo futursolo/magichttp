@@ -15,46 +15,45 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from typing import Optional, List, Tuple, Union
+from typing import Optional, List, Tuple
 
 from . import initials
 from . import constants
 
-import abc
 import http
 import magicdict
 
-_CHUNKED_BODY = -1
-_ENDLESS_BODY = -2
+BODY_IS_CHUNKED = -1
+BODY_IS_ENDLESS = -2
+BODY_UPGRADE_REQUIRED = -3
 
 _CHUNK_NOT_STARTED = -1
 _LAST_CHUNK = -2
-
-
-class InvalidTransferEncoding(ValueError):
-    pass
-
-
-class InvalidContentLength(ValueError):
-    pass
-
-
-class InvalidHeader(ValueError):
-    pass
 
 
 class UnparsableHttpMessage(ValueError):
     pass
 
 
-class IncompleteHttpMessage(ValueError):
+class InvalidHeader(UnparsableHttpMessage):
+    pass
+
+
+class InvalidTransferEncoding(InvalidHeader):
+    pass
+
+
+class InvalidContentLength(InvalidHeader):
+    pass
+
+
+class InvalidChunkLength(InvalidHeader):
     pass
 
 
 def is_chunked_body(te_header_bytes: bytes) -> bool:
     te_header_pieces = [
-        i.strip().lower() for i in te_header_bytes.split(b";")
-        if i]
+        i.strip().lower() for i in te_header_bytes.split(b";") if i]
 
     last_piece = te_header_pieces.pop(-1)
 
@@ -70,18 +69,16 @@ def is_chunked_body(te_header_bytes: bytes) -> bool:
     return last_piece == b"chunked"
 
 
-def parse_content_length(cl_header_bytes: bytes) -> int:
-    try:
-        cl_header_str = cl_header_bytes.decode("latin-1")
+def _split_initial_lines(buf: bytearray) -> Optional[List[bytes]]:
+    pos = buf.find(b"\r\n\r\n")
 
-        if not cl_header_str.isdecimal():
-            raise ValueError("This is not a valid Decimal Number.")
+    if pos == -1:
+        return None
 
-        return int(cl_header_str)
+    initial_buf = bytes(buf[:pos])
+    del buf[:pos + 4]
 
-    except (ValueError, UnicodeDecodeError) as e:
-        raise InvalidContentLength(
-            "The value of Content-Length is not valid.") from e
+    return initial_buf.split(b"\r\n")
 
 
 def parse_headers(header_lines: List[bytes]) -> \
@@ -100,374 +97,119 @@ def parse_headers(header_lines: List[bytes]) -> \
     return magicdict.FrozenTolerantMagicDict(headers)
 
 
-class BaseH1Parser(abc.ABC):
-    __slots__ = (
-        "_buf", "_searched_len", "_body_len_left",
-        "_body_chunk_len_left", "_body_chunk_crlf_dropped", "_finished",
-        "buf_ended", "_exc")
+def parse_request_initial(
+        buf: bytearray) -> Optional[initials.HttpRequestInitial]:
+    initial_lines = _split_initial_lines(buf)
 
-    def __init__(self, buf: bytearray) -> None:
-        self._buf = buf
-        self.buf_ended = False
+    if initial_lines is None:
+        return None
 
-        self._searched_len = 0
+    try:
+        method_buf, path_buf, version_buf = initial_lines.pop(0).split(b" ")
 
-        self._body_len_left: Optional[int] = None
-        # None means the initial is not ready,
-        # a non-negative integer represents the body length left,
-        # -1 means the body is chunked,
-        # and -2 means the body is endless(Read until connection EOF).
+        headers = parse_headers(initial_lines)
 
-        self._body_chunk_len_left = _CHUNK_NOT_STARTED
-        self._body_chunk_crlf_dropped = True
+        return initials.HttpRequestInitial(
+            constants.HttpRequestMethod(method_buf.upper().strip()),
+            version=constants.HttpVersion(version_buf.upper().strip()),
+            uri=path_buf,
+            authority=headers.get(b"host", None),
+            scheme=headers.get_first(b"x-scheme", None),
+            headers=headers)
 
-        self._finished = False
+    except InvalidHeader:
+        raise
 
-        self._exc: Optional[
-            Union[UnparsableHttpMessage, IncompleteHttpMessage]] = None
+    except (IndexError, ValueError) as e:
+        raise UnparsableHttpMessage(
+            "Unable to unpack the first line of the initial.") from e
 
-    def _split_initial(self) -> Optional[List[bytes]]:
-        pos = self._buf.find(b"\r\n\r\n", self._searched_len)
 
-        if pos == -1:
-            searched_len = len(self._buf) - 3
-            if searched_len < 0:
-                self._searched_len = 0
+def parse_response_initial(
+    buf: bytearray, req_initial: initials.HttpRequestInitial) -> Optional[
+        initials.HttpResponseInitial]:
+    initial_lines = _split_initial_lines(buf)
 
-            else:
-                self._searched_len = searched_len
+    if initial_lines is None:
+        return None
 
-            return None
+    try:
+        version_buf, status_code_buf, *status_text = \
+            initial_lines.pop(0).split(b" ")
 
-        self._searched_len = 0
+        return initials.HttpResponseInitial(
+            http.HTTPStatus(int(status_code_buf, 10)),
+            version=constants.HttpVersion(version_buf),
+            headers=parse_headers(initial_lines))
 
-        initial_buf = bytes(self._buf[0:pos])
-        del self._buf[0:pos + 4]
+    except InvalidHeader:
+        raise
 
-        return initial_buf.split(b"\r\n")
+    except (IndexError, ValueError) as e:
+        raise UnparsableHttpMessage(
+            "Unable to unpack the first line of the initial.") from e
 
-    def _parse_chunked_body(self) -> Optional[bytes]:
-        def try_drop_crlf() -> None:
-            if self._body_chunk_crlf_dropped:
-                return
 
-            if self._body_chunk_len_left > 0:
-                return
+def parse_content_length(cl_header_bytes: bytes) -> int:
+    try:
+        return int(cl_header_bytes, 10)
 
-            if len(self._buf) < 2:
-                return
+    except ValueError as e:
+        raise InvalidContentLength(
+            "The value of Content-Length is not valid.") from e
 
-            del self._buf[0:2]
 
-            if self._body_chunk_len_left != _LAST_CHUNK:
-                self._body_chunk_len_left = _CHUNK_NOT_STARTED
+def discover_request_body_length(initial: initials.HttpRequestInitial) -> int:
+    if initial.headers.get_first(
+            b"connection", b"").strip().lower() == b"upgrade":
+        return BODY_UPGRADE_REQUIRED
 
-            self._body_chunk_crlf_dropped = True
+    if b"transfer-encoding" in initial.headers:
+        if is_chunked_body(initial.headers[b"transfer-encoding"]):
+            return BODY_IS_CHUNKED
 
-        def try_read_next_chunk_len() -> None:
-            try_drop_crlf()
+    if b"content-length" in initial.headers:
+        return parse_content_length(initial.headers[b"content-length"])
 
-            if self._body_chunk_len_left != _CHUNK_NOT_STARTED:
-                return
+    return 0
 
-            pos = self._buf.find(b"\r\n")
 
-            if pos == -1:
-                return
+def discover_response_body_length(
+    initial: initials.HttpResponseInitial, *,
+        req_initial: initials.HttpRequestInitial) -> int:
+    if initial.headers.get_first(
+            b"connection", b"").strip().lower() == b"upgrade":
+        return BODY_UPGRADE_REQUIRED
 
-            len_bytes = self._buf[0:pos]
-            del self._buf[0:pos + 2]
+    # HEAD Requests, and 204/304 Responses have no body.
+    if req_initial.method == constants.HttpRequestMethod.Head or \
+            initial.status_code in (204, 304):
+        return 0
 
-            len_bytes = len_bytes.split(b";", 1)[0].strip()
+    if b"transfer-encoding" in initial.headers:
+        if is_chunked_body(initial.headers[b"transfer-encoding"]):
+            return BODY_IS_CHUNKED
 
-            try:
-                len_str = len_bytes.decode("latin-1")
-                self._body_chunk_len_left = int(len_str, 16)
+    if b"content-length" not in initial.headers:
+        # Read until close.
+        return BODY_IS_ENDLESS
 
-            except (UnicodeDecodeError, ValueError) as e:
-                raise UnparsableHttpMessage(
-                    "Failed to decode Chunk Length") from e
+    return parse_content_length(initial.headers[b"content-length"])
 
-            if self._body_chunk_len_left == 0:
-                self._body_chunk_len_left = _LAST_CHUNK
 
-            self._body_chunk_crlf_dropped = False
+def parse_chunk_length(buf: bytearray) -> Optional[int]:
+    pos = buf.find(b"\r\n")
 
-        try_read_next_chunk_len()
+    if pos == -1:
+        return None
 
-        if self._body_chunk_len_left == _CHUNK_NOT_STARTED:
-            return b""  # Chunk Length Not Ready.
+    len_buf = buf[:pos]
+    del buf[:pos + 2]
 
-        if self._body_chunk_len_left == _LAST_CHUNK:
-            try_drop_crlf()
-            if self._body_chunk_crlf_dropped:
-                # Body Finished.
-                return None
+    len_buf = len_buf.split(b";", 1)[0].strip()
 
-            else:
-                # Last CRLF not dropped.
-                return b""
+    try:
+        return int(len_buf, 16)
 
-        if self._body_chunk_len_left == 0:
-            return b""
-
-        if not self._buf:
-            # No more data.
-            return b""
-
-        if self._body_chunk_len_left >= len(self._buf):
-            current_chunk = bytes(self._buf)
-            self._body_chunk_len_left -= len(current_chunk)
-            self._buf.clear()  # type: ignore
-
-        else:
-            current_chunk = self._buf[0:self._body_chunk_len_left]
-            del self._buf[0:self._body_chunk_len_left]
-            self._body_chunk_len_left = 0
-
-        return current_chunk
-
-    def parse_body(self) -> Optional[bytes]:
-        assert self._body_len_left is not None, \
-            "You should parse the initial first."
-
-        if self._finished:
-            return None
-
-        if self._exc:
-            raise
-
-        try:
-            if self._body_len_left == 0:
-                self._finished = True
-
-                return None
-
-            if self._body_len_left == _ENDLESS_BODY:
-                current_chunk = bytes(self._buf)
-                self._buf.clear()  # type: ignore
-
-                if self.buf_ended:
-                    self._finished = True
-
-            elif self._body_len_left == _CHUNKED_BODY:
-                maybe_current_chunk = self._parse_chunked_body()
-                if maybe_current_chunk is None:
-                    self._finished = True
-
-                    return None
-
-                else:
-                    current_chunk = maybe_current_chunk
-
-                    if self.buf_ended and not current_chunk:
-                        raise IncompleteHttpMessage(
-                            "The buffer ended before the last chunk "
-                            "has been found.")
-
-            elif self._body_len_left >= len(self._buf):
-                current_chunk = bytes(self._buf)
-                self._body_len_left -= len(current_chunk)
-                self._buf.clear()  # type: ignore
-
-            else:
-                current_chunk = bytes(self._buf[0:self._body_len_left])
-                self._body_len_left = 0
-                del self._buf[0:self._body_len_left]
-
-            if self.buf_ended and not current_chunk and \
-                    self._body_len_left > 0:
-                raise IncompleteHttpMessage(
-                    "Buffer ended before the body length can be reached.")
-
-            return current_chunk
-
-        except (UnparsableHttpMessage, IncompleteHttpMessage) as e:
-            self._exc = e
-
-            raise
-
-
-class H1RequestParser(BaseH1Parser):
-    __slots__ = ()
-
-    def _discover_body_length(
-            self, initial: initials.HttpRequestInitial) -> None:
-        if initial.headers.get_first(
-                b"connection", b"").strip().lower() == b"upgrade":
-            self._body_len_left = _ENDLESS_BODY
-
-            return
-
-        try:
-            if b"transfer-encoding" in initial.headers.keys():
-                if is_chunked_body(initial.headers[b"transfer-encoding"]):
-                    self._body_len_left = _CHUNKED_BODY
-
-                    return
-
-            if b"content-length" in initial.headers.keys():
-                self._body_len_left = parse_content_length(
-                    initial.headers[b"content-length"])
-
-                return
-
-        except InvalidTransferEncoding as e:
-            raise UnparsableHttpMessage("Transfer Encoding is invalid.") from e
-
-        except InvalidContentLength as e:
-            raise UnparsableHttpMessage("Content Length is invalid.") from e
-
-        self._body_len_left = 0
-
-    def parse_request(self) -> Optional[initials.HttpRequestInitial]:
-        assert self._body_len_left is None, "Parsers are not reusable."
-
-        if self._exc:
-            raise self._exc
-
-        try:
-            initial_lines = self._split_initial()
-
-            if initial_lines is None:
-                if self.buf_ended:
-                    raise IncompleteHttpMessage(
-                        "Buffer ended before an initial can be found.")
-
-                return None
-
-            try:
-                first_line = initial_lines.pop(0)
-
-                method_buf, path, version_buf = first_line.split(b" ")
-
-                method = constants.HttpRequestMethod(
-                    method_buf.upper().strip())
-                version = constants.HttpVersion(version_buf.upper().strip())
-
-            except (IndexError, ValueError) as e:
-                raise UnparsableHttpMessage(
-                    "Unable to unpack the first line of the initial.") from e
-
-            try:
-                headers = parse_headers(initial_lines)
-
-            except InvalidHeader as e:
-                raise UnparsableHttpMessage("Unable to parse headers.") from e
-
-            initial = initials.HttpRequestInitial(
-                method,
-                version=version,
-                uri=path,
-                authority=headers.get(b"host", None),
-                scheme=headers.get_first(b"x-scheme", None),
-                headers=headers)
-
-            self._discover_body_length(initial)
-
-            return initial
-
-        except (UnparsableHttpMessage, IncompleteHttpMessage) as e:
-            self._exc = e
-
-            raise
-
-
-class H1ResponseParser(BaseH1Parser):
-    __slots__ = ()
-
-    def _discover_body_length(
-        self, req_initial: initials.HttpRequestInitial,
-            initial: initials.HttpResponseInitial) -> None:
-        if initial.headers.get_first(
-                b"connection", b"").strip().lower() == b"upgrade":
-            self._body_len_left = _ENDLESS_BODY
-
-            return
-
-        # HEAD Requests, and 204/304 Responses have no body.
-        if req_initial.method == constants.HttpRequestMethod.Head:
-            self._body_len_left = 0
-
-            return
-
-        if initial.status_code in (204, 304):
-            self._body_len_left = 0
-
-            return
-
-        try:
-            if b"transfer-encoding" in initial.headers.keys():
-                if is_chunked_body(initial.headers[b"transfer-encoding"]):
-                    self._body_len_left = _CHUNKED_BODY
-
-                    return
-
-            if b"content-length" not in initial.headers.keys():
-                self._body_len_left = _ENDLESS_BODY
-                # Read until close.
-
-                return
-
-            self._body_len_left = parse_content_length(
-                initial.headers[b"content-length"])
-
-        except InvalidTransferEncoding as e:
-            raise UnparsableHttpMessage("Transfer Encoding is invalid.") from e
-
-        except InvalidContentLength as e:
-            raise UnparsableHttpMessage("Content Length is invalid.") from e
-
-    def parse_response(
-        self, req_initial: initials.HttpRequestInitial) -> Optional[
-            initials.HttpResponseInitial]:
-        assert self._body_len_left is None, "Parsers are not reusable."
-
-        if self._exc:
-            raise self._exc
-
-        try:
-            initial_lines = self._split_initial()
-
-            if initial_lines is None:
-                if self.buf_ended:
-                    raise IncompleteHttpMessage(
-                        "Buffer ended before an initial can be found.")
-
-                return None
-
-            try:
-                first_line = initial_lines.pop(0)
-
-                version_buf, status_code_buf, *status_text = \
-                    first_line.split(b" ")
-
-                status_code_str = status_code_buf.decode()
-
-                if not status_code_str.isdecimal():
-                    raise ValueError("Status Code MUST be decimal.")
-
-                status_code = http.HTTPStatus(int(status_code_str))
-                version = constants.HttpVersion(version_buf)
-
-            except (IndexError, ValueError) as e:
-                raise UnparsableHttpMessage(
-                    "Unable to unpack the first line of the initial.") from e
-
-            try:
-                headers = parse_headers(initial_lines)
-
-            except InvalidHeader as e:
-                raise UnparsableHttpMessage("Unable to parse headers.") from e
-
-            initial = initials.HttpResponseInitial(
-                status_code, version=version, headers=headers)
-
-            self._discover_body_length(req_initial, initial)
-
-            return initial
-
-        except (UnparsableHttpMessage, IncompleteHttpMessage) as e:
-            self._exc = e
-
-            raise
+    except ValueError as e:
+        raise InvalidChunkLength("Failed to decode Chunk Length") from e

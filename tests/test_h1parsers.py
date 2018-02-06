@@ -15,37 +15,48 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from magichttp.h1parsers import H1RequestParser, H1ResponseParser, \
-    UnparsableHttpMessage, IncompleteHttpMessage
-from magichttp import HttpVersion, HttpRequestMethod, HttpRequestInitial
+from magichttp.h1parsers import UnparsableHttpMessage, \
+     parse_request_initial, parse_response_initial, \
+     discover_request_body_length, BODY_UPGRADE_REQUIRED, \
+     BODY_IS_CHUNKED, discover_response_body_length, BODY_IS_ENDLESS, \
+     is_chunked_body, InvalidTransferEncoding, InvalidContentLength, \
+     parse_content_length, parse_chunk_length, InvalidChunkLength
+from magichttp import HttpVersion, HttpRequestMethod, HttpRequestInitial, \
+    HttpResponseInitial
 
-import os
 import pytest
 import magicdict
 import http
 
 
-class H1RequestParserTestCase:
-    def test_init(self):
-        H1RequestParser(bytearray())
+class H1IsChunkedBodyTestCase:
+    def test_chunked(self):
+        assert is_chunked_body(b"Chunked") is True
 
+    def test_identity(self):
+        assert is_chunked_body(b"Identity") is False
+
+    def test_malformed_transfer_encodings(self):
+        with pytest.raises(InvalidTransferEncoding):
+            is_chunked_body(b"Identity; Chunked")
+
+        with pytest.raises(InvalidTransferEncoding):
+            is_chunked_body(b"Chunked; Gzip")
+
+
+class H1ParseRequestInitialTestCase:
     def test_simple_request(self):
         buf = bytearray(b"G")
-        parser = H1RequestParser(buf)
 
-        req = parser.parse_request()
-
-        assert req is None
+        assert parse_request_initial(buf) is None
 
         buf += b"ET / HTTP/1.1\r"
 
-        req = parser.parse_request()
-
-        assert req is None
+        assert parse_request_initial(buf) is None
 
         buf += b"\n\r\n"
 
-        req = parser.parse_request()
+        req = parse_request_initial(buf)
 
         assert req is not None
 
@@ -56,16 +67,13 @@ class H1RequestParserTestCase:
         assert not hasattr(req, "authority")
         assert not hasattr(req, "scheme")
 
-        assert parser.parse_body() is None
-
-    def test_simple_request_with_body(self):
+    def test_simple_post_request(self):
         buf = bytearray(
             b"POST / HTTP/1.1\r\nContent-Length: 20\r\n"
             b"Host: localhost\r\nTransfer-Encoding: Identity\r\n"
             b"X-Scheme: HTTP\r\n\r\n")
-        parser = H1RequestParser(buf)
 
-        req = parser.parse_request()
+        req = parse_request_initial(buf)
 
         assert req is not None
 
@@ -76,196 +84,32 @@ class H1RequestParserTestCase:
         assert req.authority == b"localhost"
         assert req.scheme.lower() == b"http"
 
-        assert parser.parse_body() == b""
-
-        body_part = os.urandom(5)
-        buf += body_part
-
-        assert parser.parse_body() == body_part
-
-        assert parser.parse_body() == b""
-
-        body_part = os.urandom(16)
-        buf += body_part
-
-        assert parser.parse_body() == body_part[:15]
-
-        assert parser.parse_body() is None
-
-    def test_malformed_request(self):
-        buf = bytearray(b"GET / HTTP/3.0\r\n\r\n")
-
-        parser = H1RequestParser(buf)
+    def test_malformed_requests(self):
+        with pytest.raises(UnparsableHttpMessage):
+            parse_request_initial(bytearray(b"GET / HTTP/3.0\r\n\r\n"))
 
         with pytest.raises(UnparsableHttpMessage):
-            parser.parse_request()
-
-        buf = bytearray(b"GET / HTTP/1.1\r\nContent-Length\r\n\r\n")
-
-        parser = H1RequestParser(buf)
-
-        with pytest.raises(UnparsableHttpMessage):
-            parser.parse_request()
-
-        buf = bytearray(b"GET / HTTP/1.1\r\nContent-Length: ABC\r\n\r\n")
-
-        parser = H1RequestParser(buf)
-
-        with pytest.raises(UnparsableHttpMessage):
-            parser.parse_request()
-
-        buf = bytearray(
-            b"GET / HTTP/1.1\r\nTransfer-Encoding: Identity; Chunked\r\n\r\n")
-
-        parser = H1RequestParser(buf)
-
-        with pytest.raises(UnparsableHttpMessage):
-            parser.parse_request()
-
-        buf = bytearray(
-            b"GET / HTTP/1.1\r\nTransfer-Encoding: Chunked; Gzip\r\n\r\n")
-
-        parser = H1RequestParser(buf)
-
-        with pytest.raises(UnparsableHttpMessage):
-            parser.parse_request()
-
-        buf = bytearray(
-            b"GET / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\ng\r\n\r\n")
-
-        parser = H1RequestParser(buf)
-        parser.parse_request()
-
-        with pytest.raises(UnparsableHttpMessage):
-            parser.parse_body()
-
-        buf = bytearray(b"GET / HTTP/1.1\r\n\r")
-
-        parser = H1RequestParser(buf)
-        parser.buf_ended = True
-
-        with pytest.raises(IncompleteHttpMessage):
-            parser.parse_request()
-
-        buf = bytearray(b"GET / HTTP/1.1\r\nContent-Length:20\r\n\r\n")
-
-        parser = H1RequestParser(buf)
-        parser.buf_ended = True
-
-        parser.parse_request()
-
-        with pytest.raises(IncompleteHttpMessage):
-            parser.parse_body()
-
-        buf = bytearray(
-            b"GET / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n0\r")
-
-        parser = H1RequestParser(buf)
-        parser.buf_ended = True
-
-        parser.parse_request()
-
-        with pytest.raises(IncompleteHttpMessage):
-            parser.parse_body()
-
-    def test_upgrade_request(self):
-        buf = bytearray(
-            b"GET / HTTP/1.1\r\n"
-            b"Connection: Upgrade\r\n\r\n")
-        parser = H1RequestParser(buf)
-
-        req = parser.parse_request()
-
-        assert req is not None
-
-        assert req.headers[b"connection"] == b"Upgrade"
-
-        assert parser.parse_body() == b""
-
-        body_part = os.urandom(5)
-        buf += body_part
-
-        assert parser.parse_body() == body_part
-
-        assert parser.parse_body() == b""
-
-        body_part = os.urandom(16)
-        buf += body_part
-
-        assert parser.parse_body() == body_part
-
-        assert parser.parse_body() == b""
-        assert parser.parse_body() == b""
-
-        body_part = os.urandom(20)
-        buf += body_part
-        parser.buf_ended = True
-
-        assert parser.parse_body() == body_part
-
-        assert parser.parse_body() is None
-
-    def test_chunked_request(self):
-        buf = bytearray(
-            b"POST / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n")
-
-        parser = H1RequestParser(buf)
-        assert parser.parse_request() is not None
-
-        assert parser.parse_body() == b""
-
-        buf += b"4\r\n123"
-
-        assert parser.parse_body() == b"123"
-
-        buf += b"4\r\n"
-
-        assert parser.parse_body() == b"4"
-
-        buf += b"5\r\n"
-
-        assert parser.parse_body() == b""
-
-        buf += b"12345"
-
-        assert parser.parse_body() == b"12345"
-        assert parser.parse_body() == b""
-
-        buf += b"\r\n"
-
-        assert parser.parse_body() == b""
-
-        buf += b"0\r\n\r"
-
-        assert parser.parse_body() == b""
-
-        buf += b"\n"
-
-        assert parser.parse_body() is None
+            parse_request_initial(
+                bytearray(b"GET / HTTP/1.1\r\nContent-Length\r\n\r\n"))
 
 
-class H1ResponseParserTestCase:
-    def test_init(self):
-        H1ResponseParser(bytearray())
-
+class H1ParseResponseInitialTestCase:
     def test_simple_response(self):
         req = HttpRequestInitial(
             HttpRequestMethod.Get,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=b"https",
-            headers=magicdict.TolerantMagicDict(),
+            headers=magicdict.FrozenTolerantMagicDict(),
             authority=None)
 
         buf = bytearray(b"HTTP/1.1 200 OK\r\n\r")
 
-        parser = H1ResponseParser(buf)
-
-        assert parser.parse_response(req_initial=req) is None
+        assert parse_response_initial(buf, req_initial=req) is None
 
         buf += b"\n"
 
-        res = parser.parse_response(req_initial=req)
+        res = parse_response_initial(buf, req_initial=req)
 
         assert res is not None
 
@@ -273,49 +117,119 @@ class H1ResponseParserTestCase:
         assert res.status_code == http.HTTPStatus.OK
         assert res.version == HttpVersion.V1_1
 
+    def test_malformed_responses(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.Get,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=b"https",
+            headers=magicdict.FrozenTolerantMagicDict(),
+            authority=None)
+
+        with pytest.raises(UnparsableHttpMessage):
+            parse_response_initial(
+                bytearray(b"HTTP/1.1 ???200 Not OK\r\n\r\n"), req_initial=req)
+
+        with pytest.raises(UnparsableHttpMessage):
+            parse_response_initial(
+                bytearray(b"HTTP/1.1 200 OK\r\nb\r\n\r\n"), req_initial=req)
+
+
+class H1ParseContentLengthTestCase:
+    def test_valid_content_length(self):
+        assert parse_content_length(b"20") == 20
+
+    def test_malformed_content_length(self):
+        with pytest.raises(InvalidContentLength):
+            assert parse_content_length(b"4e21") == 20001
+
+
+class H1DiscoverRequestBodyLengthTestCase:
+    def test_upgrade_request(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.Get,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=None,
+            headers=magicdict.FrozenTolerantMagicDict(
+                [(b"connection", b"Upgrade"), (b"content-length", b"20")]),
+            authority=None)
+
+        assert discover_request_body_length(req) == BODY_UPGRADE_REQUIRED
+
+    def test_request_chunked(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.Get,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=None,
+            headers=magicdict.FrozenTolerantMagicDict(
+                [(b"content-length", b"20"),
+                 (b"transfer-encoding", b"Chunked")]),
+            authority=None)
+
+        assert discover_request_body_length(req) == BODY_IS_CHUNKED
+
+    def test_request_content_length(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.Get,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=None,
+            headers=magicdict.FrozenTolerantMagicDict(
+                [(b"content-length", b"20")]),
+            authority=None)
+
+        assert discover_request_body_length(req) == 20
+
+    def test_request_no_body(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.Get,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=None,
+            headers=magicdict.FrozenTolerantMagicDict(),
+            authority=None)
+
+        assert discover_request_body_length(req) == 0
+
+
+class H1DiscoverResponseBodyLengthTestCase:
+    def test_upgrade_response(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.Get,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=b"https",
+            headers=magicdict.FrozenTolerantMagicDict(
+                [(b"Connection", "Upgrade")]),
+            authority=None)
+
+        res = HttpResponseInitial(
+            http.HTTPStatus.SWITCHING_PROTOCOLS,
+            version=HttpVersion.V1_1,
+            headers=magicdict.FrozenTolerantMagicDict(
+                [(b"connection", b"Upgrade")]))
+
+        assert discover_response_body_length(
+            res, req_initial=req) == BODY_UPGRADE_REQUIRED
+
     def test_head_request(self):
         req = HttpRequestInitial(
             HttpRequestMethod.Head,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=b"https",
-            headers=magicdict.TolerantMagicDict(),
+            headers=magicdict.FrozenTolerantMagicDict(),
             authority=None)
 
-        buf = bytearray(b"HTTP/1.1 200 OK\r\nContent-Length: 30\r\n\r\nHTTP")
-
-        parser = H1ResponseParser(buf)
-
-        res = parser.parse_response(req_initial=req)
-
-        assert res.status_code == http.HTTPStatus.OK
-        assert res.headers[b"content-length"] == b"30"
-
-        assert parser.parse_body() is None
-
-    def test_malformed_response(self):
-        req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+        res = HttpResponseInitial(
+            http.HTTPStatus.OK,
             version=HttpVersion.V1_1,
-            uri=b"/",
-            scheme=b"https",
-            headers=magicdict.TolerantMagicDict(),
-            authority=None)
+            headers=magicdict.FrozenTolerantMagicDict(
+                [(b"content-length", b"20")]))
 
-        buf = bytearray(b"HTTP/1.1 ???200 Not OK\r\n\r\n")
-
-        parser = H1ResponseParser(buf)
-
-        with pytest.raises(UnparsableHttpMessage):
-            parser.parse_response(req_initial=req)
-
-        buf = bytearray(b"HTTP/1.1 200 OK\r\n\r")
-
-        parser = H1ResponseParser(buf)
-        parser.buf_ended = True
-
-        with pytest.raises(IncompleteHttpMessage):
-            parser.parse_response(req_initial=req)
+        assert discover_response_body_length(res, req_initial=req) == 0
 
     def test_no_content(self):
         req = HttpRequestInitial(
@@ -323,139 +237,84 @@ class H1ResponseParserTestCase:
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=b"https",
-            headers=magicdict.TolerantMagicDict(),
+            headers=magicdict.FrozenTolerantMagicDict(),
             authority=None)
 
-        buf = bytearray(
-            b"HTTP/1.1 204 No Content\r\nConnection: Keep-Alive\r\n\r\nHTTP")
+        res = HttpResponseInitial(
+            http.HTTPStatus.NO_CONTENT,
+            version=HttpVersion.V1_1,
+            headers=magicdict.FrozenTolerantMagicDict())
 
-        parser = H1ResponseParser(buf)
+        assert discover_response_body_length(res, req_initial=req) == 0
 
-        res = parser.parse_response(req_initial=req)
+    def test_response_chunked(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.Get,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=None,
+            headers=magicdict.FrozenTolerantMagicDict(),
+            authority=None)
 
-        assert res.status_code == http.HTTPStatus.NO_CONTENT
+        res = HttpResponseInitial(
+            http.HTTPStatus.OK,
+            version=HttpVersion.V1_1,
+            headers=magicdict.FrozenTolerantMagicDict(
+                [(b"transfer-encoding", b"Chunked")]))
 
-        assert parser.parse_body() is None
+        assert discover_response_body_length(
+            res, req_initial=req) == BODY_IS_CHUNKED
 
-    def test_simple_response_with_body(self):
+    def test_response_endless(self):
         req = HttpRequestInitial(
             HttpRequestMethod.Get,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=b"https",
-            headers=magicdict.TolerantMagicDict(),
+            headers=magicdict.FrozenTolerantMagicDict(),
             authority=None)
 
-        buf = bytearray(
-            b"HTTP/1.1 200 OK\r\nContent-Length: 20\r\n\r\n")
-        parser = H1ResponseParser(buf)
+        res = HttpResponseInitial(
+            http.HTTPStatus.OK,
+            version=HttpVersion.V1_1,
+            headers=magicdict.FrozenTolerantMagicDict())
 
-        assert parser.parse_response(req_initial=req) is not None
+        assert discover_response_body_length(
+            res, req_initial=req) == BODY_IS_ENDLESS
 
-        assert parser.parse_body() == b""
-
-        body_part = os.urandom(5)
-        buf += body_part
-
-        assert parser.parse_body() == body_part
-
-        assert parser.parse_body() == b""
-
-        body_part = os.urandom(16)
-        buf += body_part
-
-        assert parser.parse_body() == body_part[:15]
-
-        assert parser.parse_body() is None
-
-    def test_chunked_response(self):
+    def test_response_content_length(self):
         req = HttpRequestInitial(
             HttpRequestMethod.Get,
             version=HttpVersion.V1_1,
             uri=b"/",
-            scheme=b"https",
-            headers=magicdict.TolerantMagicDict(),
+            scheme=None,
+            headers=magicdict.FrozenTolerantMagicDict(),
             authority=None)
 
-        buf = bytearray(
-            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n")
-
-        parser = H1ResponseParser(buf)
-
-        assert parser.parse_response(req_initial=req) is not None
-
-        assert parser.parse_body() == b""
-
-        buf += b"4\r\n123"
-
-        assert parser.parse_body() == b"123"
-
-        buf += b"4\r\n"
-
-        assert parser.parse_body() == b"4"
-
-        buf += b"5\r\n"
-
-        assert parser.parse_body() == b""
-
-        buf += b"12345"
-
-        assert parser.parse_body() == b"12345"
-        assert parser.parse_body() == b""
-
-        buf += b"\r\n"
-
-        assert parser.parse_body() == b""
-
-        buf += b"0\r\n\r"
-
-        assert parser.parse_body() == b""
-
-        buf += b"\n"
-
-        assert parser.parse_body() is None
-
-    def test_upgrade_request(self):
-        req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+        res = HttpResponseInitial(
+            http.HTTPStatus.OK,
             version=HttpVersion.V1_1,
-            uri=b"/",
-            scheme=b"https",
-            headers=magicdict.TolerantMagicDict([(b"Connection", "Upgrade")]),
-            authority=None)
+            headers=magicdict.FrozenTolerantMagicDict(
+                [(b"content-length", b"20")]))
 
-        buf = bytearray(
-            b"HTTP/1.1 101 Switching Protocols\r\n"
-            b"Connection: Upgrade\r\n\r\n")
-        parser = H1ResponseParser(buf)
+        assert discover_response_body_length(res, req_initial=req) == 20
 
-        req = parser.parse_response(req_initial=req)
 
-        assert req is not None
+class H1ParseChunkLengthTestCase:
+    def test_valid_chunk_length(self):
+        buf = bytearray(b"5\r\nASDFG\r\n")
 
-        assert req.headers[b"connection"] == b"Upgrade"
+        assert parse_chunk_length(buf) == 5
+        assert buf == b"ASDFG\r\n"
 
-        assert parser.parse_body() == b""
+    def test_valid_last_chunk(self):
+        buf = bytearray(b"0\r\n\r\n")
 
-        body_part = os.urandom(5)
-        buf += body_part
+        assert parse_chunk_length(buf) == 0
+        assert buf == b"\r\n"
 
-        assert parser.parse_body() == body_part
+    def test_malformed_chunk_lengths(self):
+        buf = bytearray(b"G\r\n1234567890ABCDEFG\r\n")
 
-        assert parser.parse_body() == b""
-
-        body_part = os.urandom(16)
-        buf += body_part
-
-        assert parser.parse_body() == body_part
-
-        assert parser.parse_body() == b""
-        assert parser.parse_body() == b""
-
-        body_part = os.urandom(20)
-        buf += body_part
-        parser.buf_ended = True
-
-        assert parser.parse_body() == body_part
-
-        assert parser.parse_body() is None
+        with pytest.raises(InvalidChunkLength):
+            assert parse_chunk_length(buf) == 17

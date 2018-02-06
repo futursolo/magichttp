@@ -120,11 +120,6 @@ class BaseH1StreamManager(
 
     @property
     @abc.abstractmethod
-    def _parser(self) -> h1parsers.BaseH1Parser:
-        raise NotImplementedError
-
-    @property
-    @abc.abstractmethod
     def _reader(self) -> Optional[readers.BaseHttpStreamReader]:
         raise NotImplementedError
 
@@ -141,7 +136,7 @@ class BaseH1StreamManager(
         if self._read_ended:
             return
 
-        self._parser.buf_ended = True
+        # self._parser.buf_ended = True
 
         self._data_arrived()
 
@@ -374,16 +369,10 @@ class H1ServerStreamManager(
             max_initial_size: int) -> None:
         super().__init__(__impl, buf, max_initial_size)
 
-        self.__parser = h1parsers.H1RequestParser(self._buf)
-
         self.__reader: Optional[readers.HttpRequestReader] = None
         self.__writer: Optional[writers.HttpResponseWriter] = None
 
         self._data_arrived()
-
-    @property
-    def _parser(self) -> h1parsers.H1RequestParser:
-        return self.__parser
 
     @property
     def _reader(self) -> Optional[readers.HttpRequestReader]:
@@ -394,39 +383,39 @@ class H1ServerStreamManager(
         return self.__writer
 
     def _data_arrived(self) -> None:
-        if self._read_ended:
+        """if self._read_ended:
             return
 
         exc: readers.BaseReadException
         try:
             if self._reader is None:
                 if not self._buf:
-                    if self._parser.buf_ended:
-                        self._end_reading(None)
+                    # if self._parser.buf_ended:
+                        # self._end_reading(None)
 
                     return
 
-                initial = self._parser.parse_request()
+                # initial = self._parser.parse_request()
 
-                if initial is None:
-                    if len(self._buf) > self._max_initial_size:
-                        self.pause_reading()
+                # if initial is None:
+                    # if len(self._buf) > self._max_initial_size:
+                        # self.pause_reading()
 
-                        exc = readers.EntityTooLargeError()
-                        self._end_reading(exc)
+                        # exc = readers.EntityTooLargeError()
+                        # self._end_reading(exc)
 
-                    return
+                    # return
 
-                reader = readers.HttpRequestReader(self, initial=initial)
+                # reader = readers.HttpRequestReader(self, initial=initial)
 
-                self.__reader = reader
-                self._reader_ready.set()
+                # self.__reader = reader
+                # self._reader_ready.set()
 
             else:
-                reader = self._reader
+                # reader = self._reader
 
             while True:
-                data = self._parser.parse_body()
+                # data = self._parser.parse_body()
 
                 if data is None:
                     self._end_reading(None)
@@ -455,7 +444,7 @@ class H1ServerStreamManager(
             exc = readers.ReadAbortedError()
             exc.__cause__ = e
 
-            self._end_reading(exc)
+            self._end_reading(exc)"""
 
     @property
     def _last_stream(self) -> Optional[bool]:
@@ -594,14 +583,8 @@ class H1ClientStreamManager(
 
         self._http_version = http_version
 
-        self.__parser = h1parsers.H1ResponseParser(self._buf)
-
         self.__writer: Optional[writers.HttpRequestWriter] = None
         self.__reader: Optional[readers.HttpResponseReader] = None
-
-    @property
-    def _parser(self) -> h1parsers.H1ResponseParser:
-        return self.__parser
 
     @property
     def _reader(self) -> Optional[readers.HttpResponseReader]:
@@ -612,7 +595,7 @@ class H1ClientStreamManager(
         return self.__writer
 
     def _data_arrived(self) -> None:
-        if self._read_ended:
+        """if self._read_ended:
             return
 
         if self._writer is None:
@@ -678,7 +661,7 @@ class H1ClientStreamManager(
             exc = readers.ReadAbortedError()
             exc.__cause__ = e
 
-            self._end_reading(exc)
+            self._end_reading(exc)"""
 
     @property
     def _last_stream(self) -> Optional[bool]:
