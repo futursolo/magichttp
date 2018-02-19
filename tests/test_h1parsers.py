@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-#   Copyright 2017 Kaede Hoshikawa
+#   Copyright 2018 Kaede Hoshikawa
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ from magichttp.h1parsers import UnparsableHttpMessage, \
      discover_request_body_length, BODY_UPGRADE_REQUIRED, \
      BODY_IS_CHUNKED, discover_response_body_length, BODY_IS_ENDLESS, \
      is_chunked_body, InvalidTransferEncoding, InvalidContentLength, \
-     parse_content_length, parse_chunk_length, InvalidChunkLength
+     parse_chunk_length, InvalidChunkLength
 from magichttp import HttpVersion, HttpRequestMethod, HttpRequestInitial, \
     HttpResponseInitial
 
@@ -135,15 +135,6 @@ class H1ParseResponseInitialTestCase:
                 bytearray(b"HTTP/1.1 200 OK\r\nb\r\n\r\n"), req_initial=req)
 
 
-class H1ParseContentLengthTestCase:
-    def test_valid_content_length(self):
-        assert parse_content_length(b"20") == 20
-
-    def test_malformed_content_length(self):
-        with pytest.raises(InvalidContentLength):
-            assert parse_content_length(b"4e21") == 20001
-
-
 class H1DiscoverRequestBodyLengthTestCase:
     def test_upgrade_request(self):
         req = HttpRequestInitial(
@@ -181,6 +172,19 @@ class H1DiscoverRequestBodyLengthTestCase:
             authority=None)
 
         assert discover_request_body_length(req) == 20
+
+    def test_request_malformed_content_length(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.Get,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=None,
+            headers=magicdict.FrozenTolerantMagicDict(
+                [(b"content-length", b"4e21")]),
+            authority=None)
+
+        with pytest.raises(InvalidContentLength):
+            discover_request_body_length(req)
 
     def test_request_no_body(self):
         req = HttpRequestInitial(
@@ -302,7 +306,11 @@ class H1DiscoverResponseBodyLengthTestCase:
 
 class H1ParseChunkLengthTestCase:
     def test_valid_chunk_length(self):
-        buf = bytearray(b"5\r\nASDFG\r\n")
+        buf = bytearray(b"5\r")
+
+        assert parse_chunk_length(buf) is None
+
+        buf += b"\nASDFG\r\n"
 
         assert parse_chunk_length(buf) == 5
         assert buf == b"ASDFG\r\n"

@@ -388,6 +388,9 @@ class BaseHttpStreamReader(abc.ABC):
     async def wait_end(self) -> None:
         await self._end_appended.wait()
 
+    def end_appended(self) -> bool:
+        return self._end_appended.is_set()
+
     def finished(self) -> bool:
         """
         Return True if the reader reached the end of the Request or Response.
@@ -399,8 +402,6 @@ class BaseHttpStreamReader(abc.ABC):
         Abort the reader without waiting for the end.
         """
         self._delegate.abort()
-
-        self._exc = ReadAbortedError()
 
 
 class HttpRequestReaderDelegate(

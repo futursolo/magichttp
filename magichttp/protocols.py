@@ -53,14 +53,6 @@ class BaseHttpProtocolDelegate(abc.ABC):  # pragma: nocover
         raise NotImplementedError
 
     @abc.abstractmethod
-    def finished(self) -> bool:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    async def wait_finished(self) -> None:
-        raise NotImplementedError
-
-    @abc.abstractmethod
     def close(self) -> None:
         raise NotImplementedError
 

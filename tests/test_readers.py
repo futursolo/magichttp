@@ -298,7 +298,7 @@ class HttpRequestReaderTestCase:
 
         assert mock.aborted is True
 
-        reader._append_end(None)
+        reader._append_end(ReadAbortedError())
 
         with pytest.raises(ReadAbortedError):
             await reader.read()

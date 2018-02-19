@@ -27,9 +27,6 @@ BODY_IS_CHUNKED = -1
 BODY_IS_ENDLESS = -2
 BODY_UPGRADE_REQUIRED = -3
 
-_CHUNK_NOT_STARTED = -1
-_LAST_CHUNK = -2
-
 
 class UnparsableHttpMessage(ValueError):
     pass
@@ -67,6 +64,15 @@ def is_chunked_body(te_header_bytes: bytes) -> bool:
             "Chunked transfer encoding found, but not at last.")
 
     return last_piece == b"chunked"
+
+
+def _parse_content_length_header(cl_header_bytes: bytes) -> int:
+    try:
+        return int(cl_header_bytes, 10)
+
+    except ValueError as e:
+        raise InvalidContentLength(
+            "The value of Content-Length is not valid.") from e
 
 
 def _split_initial_lines(buf: bytearray) -> Optional[List[bytes]]:
@@ -150,15 +156,6 @@ def parse_response_initial(
             "Unable to unpack the first line of the initial.") from e
 
 
-def parse_content_length(cl_header_bytes: bytes) -> int:
-    try:
-        return int(cl_header_bytes, 10)
-
-    except ValueError as e:
-        raise InvalidContentLength(
-            "The value of Content-Length is not valid.") from e
-
-
 def discover_request_body_length(initial: initials.HttpRequestInitial) -> int:
     if initial.headers.get_first(
             b"connection", b"").strip().lower() == b"upgrade":
@@ -169,7 +166,7 @@ def discover_request_body_length(initial: initials.HttpRequestInitial) -> int:
             return BODY_IS_CHUNKED
 
     if b"content-length" in initial.headers:
-        return parse_content_length(initial.headers[b"content-length"])
+        return _parse_content_length_header(initial.headers[b"content-length"])
 
     return 0
 
@@ -194,7 +191,7 @@ def discover_response_body_length(
         # Read until close.
         return BODY_IS_ENDLESS
 
-    return parse_content_length(initial.headers[b"content-length"])
+    return _parse_content_length_header(initial.headers[b"content-length"])
 
 
 def parse_chunk_length(buf: bytearray) -> Optional[int]:
