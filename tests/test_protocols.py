@@ -16,7 +16,7 @@
 #   limitations under the License.
 
 from magichttp import HttpClientProtocol, HttpRequestMethod, \
-    WriteAfterFinishedError, ReadFinishedError
+    WriteAfterFinishedError, ReadFinishedError, __version__
 
 from _helper import TestHelper
 
@@ -75,8 +75,9 @@ class HttpClientProtocolTestCase:
         writer = await protocol.write_request(HttpRequestMethod.Get, uri=b"/")
 
         assert b"".join(transport_mock._data_chunks) == \
-            (b"GET / HTTP/1.1\r\nUser-Agent: magichttp/0.0.0.dev0\r\n"
-             b"Accept: */*\r\nConnection: Keep-Alive\r\n\r\n")
+            (b"GET / HTTP/1.1\r\nUser-Agent: magichttp/%s\r\n"
+             b"Accept: */*\r\nConnection: Keep-Alive\r\n\r\n") % \
+                __version__.encode()
         transport_mock._data_chunks.clear()
 
         assert protocol.eof_received() is True
