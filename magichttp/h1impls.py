@@ -28,7 +28,7 @@ import asyncio
 import abc
 import contextlib
 
-if typing.TYPE_CHECKING:
+if typing.TYPE_CHECKING:  # pragma: no cover
     from . import constants  # noqa: F401
 
 _HeaderType = Union[
@@ -48,7 +48,7 @@ class _ReaderFuture(asyncio.Future, Generic[_T]):
     def exception(self) -> Optional[readers.BaseReadException]:  # type: ignore
         return super().exception()  # type: ignore
 
-    def cancel(self) -> bool:
+    def cancel(self) -> bool:  # pragma: no cover
         raise NotImplementedError("You cannot cancel this future.")
 
 
@@ -90,16 +90,18 @@ class _BaseH1StreamManager(
 
     @property
     @abc.abstractmethod
-    def _reader_fur(self) -> _ReaderFuture[readers.BaseHttpStreamReader]:
+    def _reader_fur(self) -> _ReaderFuture[
+            readers.BaseHttpStreamReader]:  # pragma: no cover
         raise NotImplementedError
 
     @property
     @abc.abstractmethod
-    def _writer(self) -> Optional[writers.BaseHttpStreamWriter]:
+    def _writer(self) -> Optional[
+            writers.BaseHttpStreamWriter]:  # pragma: no cover
         raise NotImplementedError
 
     @abc.abstractmethod
-    def _try_parse_initial(self) -> None:
+    def _try_parse_initial(self) -> None:  # pragma: no cover
         raise NotImplementedError
 
     def _try_parse_chunked_body(self) -> None:
@@ -237,7 +239,7 @@ class _BaseH1StreamManager(
             await self._writer.wait_finished()
 
     @abc.abstractmethod
-    def _is_last_stream(self) -> Optional[bool]:
+    def _is_last_stream(self) -> Optional[bool]:  # pragma: no cover
         raise NotImplementedError
 
     def _mark_as_last_stream(self) -> None:
@@ -627,7 +629,7 @@ class BaseH1Impl(protocols.BaseHttpProtocolDelegate):
 
     @property
     @abc.abstractmethod
-    def _stream(self) -> _BaseH1StreamManager:
+    def _stream(self) -> _BaseH1StreamManager:  # pragma: no cover
         raise NotImplementedError
 
     async def _wait_for_next_stream(self) -> None:
@@ -667,7 +669,9 @@ class BaseH1Impl(protocols.BaseHttpProtocolDelegate):
             self._transport.close()
 
     @abc.abstractmethod
-    def _set_abort_error(self, __cause: Optional[BaseException]) -> None:
+    def _set_abort_error(
+        self,
+            __cause: Optional[BaseException]) -> None:  # pragma: no cover
         raise NotImplementedError
 
     def abort(self) -> None:

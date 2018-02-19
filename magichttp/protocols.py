@@ -90,12 +90,12 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
 
     @property
     @abc.abstractmethod
-    def _delegate(self) -> BaseHttpProtocolDelegate:
+    def _delegate(self) -> BaseHttpProtocolDelegate:  # pragma: no cover
         raise NotImplementedError
 
     @property
     def transport(self) -> asyncio.Transport:
-        if self._transport is None:
+        if self._transport is None:  # pragma: no cover
             raise AttributeError("Transport is not ready.")
 
         return self._transport
@@ -164,7 +164,7 @@ class HttpServerProtocol(
 
     @property
     def _delegate(self) -> HttpServerProtocolDelegate:
-        if self.__delegate is None:
+        if self.__delegate is None:  # pragma: no cover
             raise AttributeError("Delegate is not ready.")
 
         return self.__delegate
@@ -217,7 +217,7 @@ class HttpClientProtocol(BaseHttpProtocol):
 
     @property
     def _delegate(self) -> HttpClientProtocolDelegate:
-        if self.__delegate is None:
+        if self.__delegate is None:  # pragma: no cover
             raise AttributeError("Delegate is not ready.")
 
         return self.__delegate
