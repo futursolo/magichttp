@@ -27,15 +27,15 @@ class HttpVersion(enum.Enum):
 
 
 class HttpRequestMethod(enum.Enum):
-    Get = b"GET"
-    Post = b"POST"
-    Put = b"PUT"
-    Delete = b"DELETE"
-    Head = b"HEAD"
-    Options = b"OPTIONS"
-    Connect = b"CONNECT"
-    Trace = b"TRACE"
-    Patch = b"PATCH"
+    GET = b"GET"
+    POST = b"POST"
+    PUT = b"PUT"
+    DELETE = b"DELETE"
+    HEAD = b"HEAD"
+    OPTIONS = b"OPTIONS"
+    CONNECT = b"CONNECT"
+    TRACE = b"TRACE"
+    PATCH = b"PATCH"
 
 
 HttpStatusCode = http.HTTPStatus

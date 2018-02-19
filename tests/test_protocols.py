@@ -72,7 +72,7 @@ class HttpClientProtocolTestCase:
         protocol.connection_made(transport_mock)
         protocol.data_received(b"HTTP/1.1 200 OK\r\n\r\n")
 
-        writer = await protocol.write_request(HttpRequestMethod.Get, uri=b"/")
+        writer = await protocol.write_request(HttpRequestMethod.GET, uri=b"/")
 
         assert b"".join(transport_mock._data_chunks) == \
             (b"GET / HTTP/1.1\r\nUser-Agent: magichttp/%s\r\n"

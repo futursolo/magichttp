@@ -178,7 +178,7 @@ def discover_response_body_length(
         return BODY_UPGRADE_REQUIRED
 
     # HEAD Requests, and 204/304 Responses have no body.
-    if req_initial.method == constants.HttpRequestMethod.Head or \
+    if req_initial.method == constants.HttpRequestMethod.HEAD or \
             initial.status_code in (204, 304):
         return 0
 

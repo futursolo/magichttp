@@ -26,7 +26,7 @@ import magicdict
 class ComposeRequestInitialTestCase:
     def test_simple_request(self):
         req, req_bytes = compose_request_initial(
-            method=HttpRequestMethod.Get,
+            method=HttpRequestMethod.GET,
             version=HttpVersion.V1_1,
             uri=b"/",
             authority=None,
@@ -49,7 +49,7 @@ class ComposeRequestInitialTestCase:
 
     def test_http_10_request(self):
         req, req_bytes = compose_request_initial(
-            method=HttpRequestMethod.Get,
+            method=HttpRequestMethod.GET,
             version=HttpVersion.V1_0,
             uri=b"/",
             authority=b"localhost",
@@ -77,7 +77,7 @@ class ComposeRequestInitialTestCase:
 class ComposeResponseInitialTestCase:
     def test_simple_response(self):
         req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+            HttpRequestMethod.GET,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=b"http",
@@ -117,7 +117,7 @@ class ComposeResponseInitialTestCase:
 
     def test_http_10(self):
         req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+            HttpRequestMethod.GET,
             version=HttpVersion.V1_0,
             uri=b"/",
             scheme=b"http",
@@ -139,7 +139,7 @@ class ComposeResponseInitialTestCase:
 
     def test_keep_alive(self):
         req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+            HttpRequestMethod.GET,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=b"http",
@@ -164,7 +164,7 @@ class ComposeResponseInitialTestCase:
 
     def test_no_keep_alive(self):
         req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+            HttpRequestMethod.GET,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=b"http",

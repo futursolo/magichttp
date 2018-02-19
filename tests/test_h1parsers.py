@@ -62,7 +62,7 @@ class H1ParseRequestInitialTestCase:
         assert req.headers == {}
         assert req.version == HttpVersion.V1_1
         assert req.uri == b"/"
-        assert req.method == HttpRequestMethod.Get
+        assert req.method == HttpRequestMethod.GET
         assert not hasattr(req, "authority")
         assert not hasattr(req, "scheme")
 
@@ -79,7 +79,7 @@ class H1ParseRequestInitialTestCase:
         assert req.headers[b"content-length"] == b"20"
         assert req.version == HttpVersion.V1_1
         assert req.uri == b"/"
-        assert req.method == HttpRequestMethod.Post
+        assert req.method == HttpRequestMethod.POST
         assert req.authority == b"localhost"
         assert req.scheme.lower() == b"http"
 
@@ -95,7 +95,7 @@ class H1ParseRequestInitialTestCase:
 class H1ParseResponseInitialTestCase:
     def test_simple_response(self):
         req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+            HttpRequestMethod.GET,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=b"https",
@@ -118,7 +118,7 @@ class H1ParseResponseInitialTestCase:
 
     def test_malformed_responses(self):
         req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+            HttpRequestMethod.GET,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=b"https",
@@ -137,7 +137,7 @@ class H1ParseResponseInitialTestCase:
 class H1DiscoverRequestBodyLengthTestCase:
     def test_upgrade_request(self):
         req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+            HttpRequestMethod.GET,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=None,
@@ -149,7 +149,7 @@ class H1DiscoverRequestBodyLengthTestCase:
 
     def test_request_chunked(self):
         req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+            HttpRequestMethod.GET,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=None,
@@ -162,7 +162,7 @@ class H1DiscoverRequestBodyLengthTestCase:
 
     def test_request_content_length(self):
         req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+            HttpRequestMethod.GET,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=None,
@@ -174,7 +174,7 @@ class H1DiscoverRequestBodyLengthTestCase:
 
     def test_request_malformed_content_length(self):
         req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+            HttpRequestMethod.GET,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=None,
@@ -187,7 +187,7 @@ class H1DiscoverRequestBodyLengthTestCase:
 
     def test_request_no_body(self):
         req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+            HttpRequestMethod.GET,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=None,
@@ -200,7 +200,7 @@ class H1DiscoverRequestBodyLengthTestCase:
 class H1DiscoverResponseBodyLengthTestCase:
     def test_upgrade_response(self):
         req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+            HttpRequestMethod.GET,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=b"https",
@@ -219,7 +219,7 @@ class H1DiscoverResponseBodyLengthTestCase:
 
     def test_head_request(self):
         req = HttpRequestInitial(
-            HttpRequestMethod.Head,
+            HttpRequestMethod.HEAD,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=b"https",
@@ -236,7 +236,7 @@ class H1DiscoverResponseBodyLengthTestCase:
 
     def test_no_content(self):
         req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+            HttpRequestMethod.GET,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=b"https",
@@ -252,7 +252,7 @@ class H1DiscoverResponseBodyLengthTestCase:
 
     def test_response_chunked(self):
         req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+            HttpRequestMethod.GET,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=None,
@@ -270,7 +270,7 @@ class H1DiscoverResponseBodyLengthTestCase:
 
     def test_response_endless(self):
         req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+            HttpRequestMethod.GET,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=b"https",
@@ -287,7 +287,7 @@ class H1DiscoverResponseBodyLengthTestCase:
 
     def test_response_content_length(self):
         req = HttpRequestInitial(
-            HttpRequestMethod.Get,
+            HttpRequestMethod.GET,
             version=HttpVersion.V1_1,
             uri=b"/",
             scheme=None,
