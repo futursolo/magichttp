@@ -21,6 +21,7 @@ from magichttp import HttpClientProtocol, HttpRequestMethod, \
 from _helper import TestHelper
 
 import pytest
+import os
 
 
 helper = TestHelper()
@@ -82,10 +83,9 @@ class HttpClientProtocolTestCase:
 
         assert protocol.eof_received() is True
 
-        writer.write(b"12345")
         writer.finish()
 
-        assert b"".join(transport_mock._data_chunks) == b"12345"
+        assert b"".join(transport_mock._data_chunks) == b""
 
         with pytest.raises(WriteAfterFinishedError):
             writer.write(b"1")
@@ -112,10 +112,12 @@ class HttpClientProtocolTestCase:
 
         for _ in range(0, 2):
             writer = await protocol.write_request(
-                HttpRequestMethod.GET, uri=b"/")
+                HttpRequestMethod.GET, uri=b"/",
+                headers={b"content-length": b"5"})
 
             assert b"".join(transport_mock._data_chunks) == \
-                (b"GET / HTTP/1.1\r\nUser-Agent: magichttp/%s\r\n"
+                (b"GET / HTTP/1.1\r\nContent-Length: 5\r\n"
+                 b"User-Agent: magichttp/%s\r\n"
                  b"Accept: */*\r\nConnection: Keep-Alive\r\n\r\n") % \
                 __version__.encode()
             transport_mock._data_chunks.clear()
@@ -141,6 +143,54 @@ class HttpClientProtocolTestCase:
 
         with pytest.raises(WriteAfterFinishedError):
             await protocol.write_request(HttpRequestMethod.GET)
+
+    @helper.run_async_test
+    async def test_response_with_body(self):
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+        protocol.data_received(
+            b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n12345")
+
+        writer = await protocol.write_request(HttpRequestMethod.GET, uri=b"/")
+        writer.finish()
+
+        reader = await writer.read_response()
+        assert await reader.read() == b"12345"
+
+        assert reader.initial.status_code == 200
+        assert reader.initial.headers == {b"content-length": b"5"}
+
+        assert protocol.eof_received() is True
+        protocol.connection_lost(None)
+
+    @helper.run_async_test
+    async def test_response_with_endless_body(self):
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+        protocol.data_received(b"HTTP/1.0 200 OK\r\n\r\n")
+
+        writer = await protocol.write_request(HttpRequestMethod.GET, uri=b"/")
+        writer.finish()
+
+        reader = await writer.read_response()
+
+        for _ in range(0, 5):
+            data = os.urandom(1024)
+            protocol.data_received(data)
+            assert await reader.read(4096) == data
+
+        assert protocol.eof_received() is True
+
+        with pytest.raises(ReadFinishedError):
+            await reader.read()
+
+        assert transport_mock._closing is True
+
+        protocol.connection_lost(None)
 
 
 class HttpServerProtocolTestCase:

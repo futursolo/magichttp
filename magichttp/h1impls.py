@@ -301,9 +301,8 @@ class _BaseH1StreamManager(
         if not self._reader_fur.done():
             self._reader_fur.set_exception(exc)
 
-            return
-
-        self._reader_fur.result()._append_end(exc)
+        else:
+            self._reader_fur.result()._append_end(exc)
 
         self._maybe_cleanup()
 
