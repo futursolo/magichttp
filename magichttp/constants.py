@@ -16,8 +16,9 @@
 #   limitations under the License.
 
 import enum
+import http
 
-__all__ = ["HttpVersion", "HttpRequestMethod"]
+__all__ = ["HttpVersion", "HttpRequestMethod", "HttpStatusCode"]
 
 
 class HttpVersion(enum.Enum):
@@ -35,3 +36,6 @@ class HttpRequestMethod(enum.Enum):
     Connect = b"CONNECT"
     Trace = b"TRACE"
     Patch = b"PATCH"
+
+
+HttpStatusCode = http.HTTPStatus

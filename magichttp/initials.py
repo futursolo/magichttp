@@ -23,7 +23,6 @@ if typing.TYPE_CHECKING:  # pragma: no cover
     from . import constants  # noqa: F401
 
     import magicdict  # noqa: F401
-    import http  # noqa: F401
 
 __all__ = [
     "HttpRequestInitial", "HttpResponseInitial"]
@@ -110,7 +109,7 @@ class HttpResponseInitial:
     __slots__ = ("_status_code", "_version", "_headers")
 
     def __init__(
-        self, status_code: "http.HTTPStatus", *,
+        self, status_code: "constants.HttpStatusCode", *,
         version: "constants.HttpVersion",
         headers: "magicdict.FrozenTolerantMagicDict[bytes, bytes]"
             ) -> None:
@@ -120,7 +119,7 @@ class HttpResponseInitial:
         self._headers = headers
 
     @property
-    def status_code(self) -> "http.HTTPStatus":
+    def status_code(self) -> "constants.HttpStatusCode":
         return self._status_code
 
     @property

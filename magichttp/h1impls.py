@@ -31,8 +31,6 @@ import contextlib
 if typing.TYPE_CHECKING:
     from . import constants  # noqa: F401
 
-    import http  # noqa: F401
-
 _HeaderType = Union[
     Mapping[bytes, bytes],
     Iterable[Tuple[bytes, bytes]]]
@@ -521,7 +519,7 @@ class _H1ServerStreamManager(
             raise readers.RequestInitialMalformedError(self) from e
 
     def write_response(
-        self, status_code: "http.HTTPStatus", *,
+        self, status_code: "constants.HttpStatusCode", *,
         headers: Optional[_HeaderType]
             ) -> writers.HttpResponseWriter:
         if self._writer is not None:

@@ -77,7 +77,7 @@ class HttpClientProtocolTestCase:
         assert b"".join(transport_mock._data_chunks) == \
             (b"GET / HTTP/1.1\r\nUser-Agent: magichttp/%s\r\n"
              b"Accept: */*\r\nConnection: Keep-Alive\r\n\r\n") % \
-                __version__.encode()
+            __version__.encode()
         transport_mock._data_chunks.clear()
 
         assert protocol.eof_received() is True

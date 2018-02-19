@@ -22,10 +22,6 @@ from . import constants
 from . import _version
 
 import magicdict
-import typing
-
-if typing.TYPE_CHECKING:  # pragma: no cover
-    import http  # noqa: F401
 
 _SELF_IDENTIFIER = f"magichttp/{_version.__version__}".encode()
 
@@ -86,7 +82,7 @@ def compose_request_initial(
 
 
 def compose_response_initial(
-        status_code: "http.HTTPStatus", *,
+        status_code: constants.HttpStatusCode, *,
         headers: Optional[_HeaderType],
         req_initial: Optional[initials.HttpRequestInitial]
             ) -> Tuple[initials.HttpResponseInitial, bytes]:

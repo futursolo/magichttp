@@ -20,7 +20,6 @@ from typing import Optional, List, Tuple
 from . import initials
 from . import constants
 
-import http
 import magicdict
 
 BODY_IS_CHUNKED = -1
@@ -144,7 +143,7 @@ def parse_response_initial(
             initial_lines.pop(0).split(b" ")
 
         return initials.HttpResponseInitial(
-            http.HTTPStatus(int(status_code_buf, 10)),
+            constants.HttpStatusCode(int(status_code_buf, 10)),
             version=constants.HttpVersion(version_buf),
             headers=parse_headers(initial_lines))
 

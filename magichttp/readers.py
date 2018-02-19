@@ -17,10 +17,11 @@
 
 from typing import Union, Mapping, Iterable, Tuple, Optional, Any
 
+from . import constants
+
 import abc
 import asyncio
 import typing
-import http
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from . import initials  # noqa: F401
@@ -72,13 +73,13 @@ class RequestInitialTooLargeError(EntityTooLargeError):
 
     def write_response(
         self, status_code: Union[
-            int, http.HTTPStatus
-        ]=http.HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE, *,
+            int, constants.HttpStatusCode
+        ]=constants.HttpStatusCode.REQUEST_HEADER_FIELDS_TOO_LARGE, *,
         headers: Optional[_HeaderType]=None
             ) -> "writers.HttpResponseWriter":
 
         return self._delegate.write_response(
-            http.HTTPStatus(status_code),
+            constants.HttpStatusCode(status_code),
             headers=headers)
 
 
@@ -139,12 +140,13 @@ class RequestInitialMalformedError(ReceivedDataMalformedError):
 
     def write_response(
         self, status_code: Union[
-            int, http.HTTPStatus]=http.HTTPStatus.BAD_REQUEST, *,
+            int, constants.HttpStatusCode
+        ]=constants.HttpStatusCode.BAD_REQUEST, *,
         headers: Optional[_HeaderType]=None
             ) -> "writers.HttpResponseWriter":
 
         return self._delegate.write_response(
-            http.HTTPStatus(status_code),
+            constants.HttpStatusCode(status_code),
             headers=headers)
 
 
@@ -408,7 +410,7 @@ class HttpRequestReaderDelegate(
         BaseHttpStreamReaderDelegate):  # pragma: no cover
     @abc.abstractmethod
     def write_response(
-        self, status_code: http.HTTPStatus, *,
+        self, status_code: constants.HttpStatusCode, *,
         headers: Optional[_HeaderType]
             ) -> "writers.HttpResponseWriter":
         raise NotImplementedError
@@ -439,12 +441,12 @@ class HttpRequestReader(BaseHttpStreamReader):
         return self._writer
 
     def write_response(
-        self, status_code: Union[int, http.HTTPStatus], *,
+        self, status_code: Union[int, constants.HttpStatusCode], *,
         headers: Optional[_HeaderType]=None
             ) -> "writers.HttpResponseWriter":
 
         self._writer = self.__delegate.write_response(
-            http.HTTPStatus(status_code),
+            constants.HttpStatusCode(status_code),
             headers=headers)
 
         return self._writer

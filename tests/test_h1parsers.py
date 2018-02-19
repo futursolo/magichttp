@@ -22,11 +22,10 @@ from magichttp.h1parsers import UnparsableHttpMessage, \
      is_chunked_body, InvalidTransferEncoding, InvalidContentLength, \
      parse_chunk_length, InvalidChunkLength
 from magichttp import HttpVersion, HttpRequestMethod, HttpRequestInitial, \
-    HttpResponseInitial
+    HttpResponseInitial, HttpStatusCode
 
 import pytest
 import magicdict
-import http
 
 
 class H1IsChunkedBodyTestCase:
@@ -114,7 +113,7 @@ class H1ParseResponseInitialTestCase:
         assert res is not None
 
         assert res.headers == {}
-        assert res.status_code == http.HTTPStatus.OK
+        assert res.status_code == HttpStatusCode.OK
         assert res.version == HttpVersion.V1_1
 
     def test_malformed_responses(self):
@@ -210,7 +209,7 @@ class H1DiscoverResponseBodyLengthTestCase:
             authority=None)
 
         res = HttpResponseInitial(
-            http.HTTPStatus.SWITCHING_PROTOCOLS,
+            HttpStatusCode.SWITCHING_PROTOCOLS,
             version=HttpVersion.V1_1,
             headers=magicdict.FrozenTolerantMagicDict(
                 [(b"connection", b"Upgrade")]))
@@ -228,7 +227,7 @@ class H1DiscoverResponseBodyLengthTestCase:
             authority=None)
 
         res = HttpResponseInitial(
-            http.HTTPStatus.OK,
+            HttpStatusCode.OK,
             version=HttpVersion.V1_1,
             headers=magicdict.FrozenTolerantMagicDict(
                 [(b"content-length", b"20")]))
@@ -245,7 +244,7 @@ class H1DiscoverResponseBodyLengthTestCase:
             authority=None)
 
         res = HttpResponseInitial(
-            http.HTTPStatus.NO_CONTENT,
+            HttpStatusCode.NO_CONTENT,
             version=HttpVersion.V1_1,
             headers=magicdict.FrozenTolerantMagicDict())
 
@@ -261,7 +260,7 @@ class H1DiscoverResponseBodyLengthTestCase:
             authority=None)
 
         res = HttpResponseInitial(
-            http.HTTPStatus.OK,
+            HttpStatusCode.OK,
             version=HttpVersion.V1_1,
             headers=magicdict.FrozenTolerantMagicDict(
                 [(b"transfer-encoding", b"Chunked")]))
@@ -279,7 +278,7 @@ class H1DiscoverResponseBodyLengthTestCase:
             authority=None)
 
         res = HttpResponseInitial(
-            http.HTTPStatus.OK,
+            HttpStatusCode.OK,
             version=HttpVersion.V1_1,
             headers=magicdict.FrozenTolerantMagicDict())
 
@@ -296,7 +295,7 @@ class H1DiscoverResponseBodyLengthTestCase:
             authority=None)
 
         res = HttpResponseInitial(
-            http.HTTPStatus.OK,
+            HttpStatusCode.OK,
             version=HttpVersion.V1_1,
             headers=magicdict.FrozenTolerantMagicDict(
                 [(b"content-length", b"20")]))

@@ -18,9 +18,8 @@
 from magichttp.h1composers import compose_request_initial, \
     compose_response_initial, compose_chunked_body
 from magichttp import HttpRequestMethod, HttpVersion, __version__, \
-    HttpRequestInitial
+    HttpRequestInitial, HttpStatusCode
 
-import http
 import magicdict
 
 
@@ -86,7 +85,7 @@ class ComposeResponseInitialTestCase:
             authority=None)
 
         res, res_bytes = compose_response_initial(
-            http.HTTPStatus.OK, headers=None, req_initial=req)
+            HttpStatusCode.OK, headers=None, req_initial=req)
 
         assert res.status_code == 200
         assert res.headers == {
@@ -102,7 +101,7 @@ class ComposeResponseInitialTestCase:
 
     def test_bad_request(self):
         res, res_bytes = compose_response_initial(
-            http.HTTPStatus.BAD_REQUEST, headers=None, req_initial=None)
+            HttpStatusCode.BAD_REQUEST, headers=None, req_initial=None)
 
         assert res.status_code == 400
         assert res.headers == {
@@ -126,7 +125,7 @@ class ComposeResponseInitialTestCase:
             authority=None)
 
         res, res_bytes = compose_response_initial(
-            http.HTTPStatus.OK, headers=None, req_initial=req)
+            HttpStatusCode.OK, headers=None, req_initial=req)
 
         assert res.status_code == 200
         assert res.headers == {
@@ -149,7 +148,7 @@ class ComposeResponseInitialTestCase:
             authority=None)
 
         res, res_bytes = compose_response_initial(
-            http.HTTPStatus.OK, headers=None, req_initial=req)
+            HttpStatusCode.OK, headers=None, req_initial=req)
 
         assert res.status_code == 200
         assert res.headers == {
@@ -174,7 +173,7 @@ class ComposeResponseInitialTestCase:
             authority=None)
 
         res, res_bytes = compose_response_initial(
-            http.HTTPStatus.OK, headers=None, req_initial=req)
+            HttpStatusCode.OK, headers=None, req_initial=req)
 
         assert res.status_code == 200
         assert res.headers == {
