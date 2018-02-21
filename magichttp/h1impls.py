@@ -621,8 +621,6 @@ class BaseH1Impl(protocols.BaseHttpProtocolDelegate):
 
         self._buf = bytearray()
 
-        self._next_stream_fur: Optional["asyncio.Future[None]"] = None
-
         self._reading_paused = False
 
     def _pause_reading(self) -> None:
@@ -645,18 +643,6 @@ class BaseH1Impl(protocols.BaseHttpProtocolDelegate):
     @abc.abstractmethod
     def _stream(self) -> _BaseH1StreamManager:  # pragma: no cover
         raise NotImplementedError
-
-    async def _wait_for_next_stream(self) -> None:
-        if self._next_stream_fur is None or \
-                self._next_stream_fur.done():
-            self._next_stream_fur = asyncio.Future()
-
-        await self._next_stream_fur
-
-    def _next_stream_ready(self) -> None:
-        if self._next_stream_fur is not None and \
-                not self._next_stream_fur.done():
-            self._next_stream_fur.set_result(None)
 
     def data_received(self, data: bytes) -> None:
         self._buf += data
@@ -695,8 +681,6 @@ class BaseH1Impl(protocols.BaseHttpProtocolDelegate):
         else:
             self._stream._connection_lost(None)
 
-        self._next_stream_ready()
-
 
 class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
     def __init__(
@@ -734,7 +718,6 @@ class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
                 self.__stream = _H1ServerStreamManager(
                     self, self._buf, self._max_initial_size)
                 self._request_read = False
-                self._next_stream_ready()
 
             reader = await self._stream._read_request()
             self._request_read = True
@@ -796,8 +779,6 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
                     self, self._buf, self._max_initial_size,
                     self._http_version)
                 self._request_written = False
-
-                self._next_stream_ready()
 
             writer = self._stream._write_request(
                 method, uri=uri, authority=authority, scheme=scheme,
