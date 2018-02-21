@@ -16,7 +16,8 @@
 #   limitations under the License.
 
 from magichttp import HttpClientProtocol, HttpRequestMethod, \
-    WriteAfterFinishedError, ReadFinishedError, __version__, HttpServerProtocol
+    WriteAfterFinishedError, ReadFinishedError, __version__, \
+    HttpServerProtocol, EntityTooLargeError, ReceivedDataMalformedError
 
 from _helper import TestHelper
 
@@ -357,7 +358,7 @@ class HttpClientProtocolTestCase:
         protocol.connection_lost(None)
 
     @helper.run_async_test
-    async def test_close_before_close(self):
+    async def test_close_before_finished(self):
         protocol = HttpClientProtocol()
         transport_mock = TransportMock()
 
@@ -412,6 +413,63 @@ class HttpClientProtocolTestCase:
         protocol.connection_lost(None)
 
         await tsk
+
+    @helper.run_async_test
+    async def test_response_initial_too_large(self):
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+        protocol.data_received(os.urandom(5 * 1024 * 1024))
+
+        writer = await protocol.write_request(HttpRequestMethod.GET, uri=b"/")
+        writer.finish()
+
+        with pytest.raises(EntityTooLargeError):
+            await writer.read_response()
+
+        assert transport_mock._closing is True
+        protocol.connection_lost(None)
+
+    @helper.run_async_test
+    async def test_response_initial_malformed(self):
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+        protocol.data_received(b"HTTP/1.2 204 NO CONTENT\r\n\r\n")
+
+        writer = await protocol.write_request(HttpRequestMethod.GET, uri=b"/")
+        writer.finish()
+
+        with pytest.raises(ReceivedDataMalformedError):
+            await writer.read_response()
+
+        assert transport_mock._closing is True
+        protocol.connection_lost(None)
+
+    @helper.run_async_test
+    async def test_response_chunk_len_too_long(self):
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+        protocol.data_received(
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n")
+
+        writer = await protocol.write_request(HttpRequestMethod.GET, uri=b"/")
+        writer.finish()
+
+        reader = await writer.read_response()
+
+        assert reader.initial.headers[b"transfer-encoding"] == b"Chunked"
+
+        protocol.data_received(b"0" * 5 * 1024 * 1024)
+        with pytest.raises(EntityTooLargeError):
+            await reader.read()
+
+        assert transport_mock._closing is True
+        protocol.connection_lost(None)
 
 
 class HttpServerProtocolTestCase:

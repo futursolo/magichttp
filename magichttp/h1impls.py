@@ -224,7 +224,7 @@ class _BaseH1StreamManager(
             return False
 
         if self._reader_fur.exception() is not None:
-            return False
+            return True
 
         return self._reader_fur.result().end_appended()
 
@@ -408,7 +408,7 @@ class _H1ClientStreamManager(
         scheme: Optional[bytes],
             headers: Optional[_HeaderType]) -> writers.HttpRequestWriter:
         if self._writer is not None:
-            raise RuntimeError("You cannot write response twice.")
+            raise RuntimeError("You cannot write request twice.")
 
         if self._write_exc:
             raise self._write_exc
@@ -515,8 +515,7 @@ class _H1ServerStreamManager(
             if len(self._buf) > self._max_initial_size:
                 self.pause_reading()
 
-                exc = readers.EntityTooLargeError()
-                self._set_read_exception(exc)
+                self._set_read_exception(readers.EntityTooLargeError())
 
             return
 
