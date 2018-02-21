@@ -22,6 +22,7 @@ from _helper import TestHelper
 
 import pytest
 import os
+import asyncio
 
 
 helper = TestHelper()
@@ -188,6 +189,54 @@ class HttpClientProtocolTestCase:
         with pytest.raises(ReadFinishedError):
             await reader.read()
 
+        assert transport_mock._closing is True
+
+        protocol.connection_lost(None)
+
+    @helper.run_async_test
+    async def test_response_with_chunked_body(self):
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+        protocol.data_received(
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n")
+
+        writer = await protocol.write_request(HttpRequestMethod.GET, uri=b"/")
+        writer.finish()
+
+        reader = await writer.read_response()
+
+        assert reader.initial.headers[b"transfer-encoding"] == b"Chunked"
+
+        data = os.urandom(5)
+
+        async def read_data():
+            assert await reader.read(5, exactly=True) == data
+
+        tsk = helper.loop.create_task(read_data())
+
+        await asyncio.sleep(0)
+        assert tsk.done() is False
+
+        protocol.data_received(b"5\r")
+
+        await asyncio.sleep(0)
+        assert tsk.done() is False
+
+        protocol.data_received(b"\n" + data[:3])
+
+        await asyncio.sleep(0)
+        assert tsk.done() is False
+
+        protocol.data_received(data[3:] + b"\r\n0\r\n\r\n")
+
+        await read_data()
+
+        with pytest.raises(ReadFinishedError):
+            await reader.read()
+
+        assert protocol.eof_received() is True
         assert transport_mock._closing is True
 
         protocol.connection_lost(None)

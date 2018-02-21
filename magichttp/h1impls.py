@@ -108,22 +108,23 @@ class _BaseH1StreamManager(
         reader = self._reader_fur.result()
 
         while True:
-            if not self._current_chunk_crlf_dropped:
-                if len(self._buf) < 2:
-                    return
+            if self._current_chunk_len is None or \
+                    self._current_chunk_len == _LAST_CHUNK:
+                if self._current_chunk_crlf_dropped is False:
+                    if len(self._buf) < 2:
+                        return
 
-                del self._buf[:2]
+                    del self._buf[:2]
 
-                self._current_chunk_crlf_dropped = True
+                    self._current_chunk_crlf_dropped = True
 
-                if self._current_chunk_len == _LAST_CHUNK:
-                    reader._append_end(None)
+                    if self._current_chunk_len == _LAST_CHUNK:
+                        reader._append_end(None)
 
-                    self._maybe_cleanup()
+                        self._maybe_cleanup()
 
-                    return
+                        return
 
-            if self._current_chunk_len is None:
                 self._current_chunk_len = h1parsers.parse_chunk_length(
                     self._buf)
 
@@ -151,6 +152,8 @@ class _BaseH1StreamManager(
 
             if self._current_chunk_len > 0:
                 return
+
+            self._current_chunk_len = None
 
     def _try_parse_body(self) -> None:
         assert self._body_len is not None
@@ -336,6 +339,19 @@ class _BaseH1StreamManager(
 
         self._set_read_exception(read_exc)
         self._set_write_exception(write_exc)
+
+    def _connection_lost(self, exc: Optional[BaseException]) -> None:
+        if self._finished():
+            return
+
+        if exc:
+            self._set_abort_error(exc)
+
+            return
+
+        self._eof_received()
+        self._set_write_exception(
+            writers.WriteAbortedError("Connnection closed."))
 
 
 class _H1ClientStreamManager(
@@ -608,7 +624,6 @@ class BaseH1Impl(protocols.BaseHttpProtocolDelegate):
         self._next_stream_fur: Optional["asyncio.Future[None]"] = None
 
         self._reading_paused = False
-        self._eof = False
 
     def _pause_reading(self) -> None:
         if self._reading_paused:
@@ -649,11 +664,6 @@ class BaseH1Impl(protocols.BaseHttpProtocolDelegate):
         self._stream._data_appended()
 
     def eof_received(self) -> None:
-        if self._eof:
-            return
-
-        self._eof = True
-
         if not self._stream._finished():
             self._stream._eof_received()
 
@@ -682,7 +692,8 @@ class BaseH1Impl(protocols.BaseHttpProtocolDelegate):
         if exc:
             self._set_abort_error(exc)
 
-        self.eof_received()
+        else:
+            self._stream._connection_lost(None)
 
         self._next_stream_ready()
 
