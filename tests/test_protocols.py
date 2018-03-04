@@ -17,7 +17,8 @@
 
 from magichttp import HttpClientProtocol, HttpRequestMethod, \
     WriteAfterFinishedError, ReadFinishedError, __version__, \
-    HttpServerProtocol, EntityTooLargeError, ReceivedDataMalformedError
+    HttpServerProtocol, EntityTooLargeError, ReceivedDataMalformedError, \
+    WriteAbortedError, ReadAbortedError
 
 from _helper import TestHelper
 
@@ -470,6 +471,294 @@ class HttpClientProtocolTestCase:
 
         assert transport_mock._closing is True
         protocol.connection_lost(None)
+
+    @helper.run_async_test
+    async def test_remote_abort_1(self):
+        """
+        HttpClientProtocol.connection_made() -x-> \
+        HttpClientProtocol.write_request() -> \
+        [HttpRequestWriter.write(), HttpRequestWriter.flush()] -> \
+        HttpRequestWriter.finish() -> \
+        HttpRequestWriter.read_response() -> \
+        HttpResponseReader.read()
+        """
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+
+        protocol.connection_lost(None)
+        assert transport_mock._closing is True
+
+        with pytest.raises(WriteAbortedError):
+            await protocol.write_request(HttpRequestMethod.GET)
+
+    @helper.run_async_test
+    async def test_remote_abort_2(self):
+        """
+        HttpClientProtocol.connection_made() -> \
+        HttpClientProtocol.write_request() -x-> \
+        [HttpRequestWriter.write(), HttpRequestWriter.flush()] -> \
+        HttpRequestWriter.finish() -> \
+        HttpRequestWriter.read_response() -> \
+        HttpResponseReader.read()
+        """
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+
+        writer = await protocol.write_request(HttpRequestMethod.GET, uri=b"/")
+
+        protocol.connection_lost(None)
+        assert transport_mock._closing is True
+
+        with pytest.raises(WriteAbortedError):
+            await writer.flush()
+
+        with pytest.raises(WriteAbortedError):
+            writer.finish()
+
+        with pytest.raises(ReadAbortedError):
+            await writer.read_response()
+
+    @helper.run_async_test
+    async def test_remote_abort_3(self):
+        """
+        HttpClientProtocol.connection_made() -> \
+        HttpClientProtocol.write_request() -> \
+        [HttpRequestWriter.write(), HttpRequestWriter.flush()] -x-> \
+        HttpRequestWriter.finish() -> \
+        HttpRequestWriter.read_response() -> \
+        HttpResponseReader.read()
+        """
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+
+        writer = await protocol.write_request(
+            HttpRequestMethod.POST, uri=b"/", headers={b"content-type": b"1"})
+
+        writer.write(os.urandom(1))
+        await writer.flush()
+
+        protocol.connection_lost(None)
+        assert transport_mock._closing is True
+
+        with pytest.raises(WriteAbortedError):
+            writer.finish()
+
+        with pytest.raises(ReadAbortedError):
+            await writer.read_response()
+
+    @helper.run_async_test
+    async def test_remote_abort_4(self):
+        """
+        HttpClientProtocol.connection_made() -> \
+        HttpClientProtocol.write_request() -> \
+        [HttpRequestWriter.write(), HttpRequestWriter.flush()] -> \
+        HttpRequestWriter.finish() -x-> \
+        HttpRequestWriter.read_response() -> \
+        HttpResponseReader.read()
+        """
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+
+        writer = await protocol.write_request(
+            HttpRequestMethod.POST, uri=b"/", headers={b"content-type": b"1"})
+
+        writer.write(os.urandom(1))
+        await writer.flush()
+        writer.finish()
+
+        protocol.data_received(
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r")
+
+        protocol.connection_lost(None)
+        assert transport_mock._closing is True
+
+        with pytest.raises(ReadAbortedError):
+            await writer.read_response()
+
+    @helper.run_async_test
+    async def test_remote_abort_5(self):
+        """
+        HttpClientProtocol.connection_made() -> \
+        HttpClientProtocol.write_request() -> \
+        [HttpRequestWriter.write(), HttpRequestWriter.flush()] -> \
+        HttpRequestWriter.finish() -> \
+        HttpRequestWriter.read_response() -x-> \
+        HttpResponseReader.read()
+        """
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+
+        writer = await protocol.write_request(
+            HttpRequestMethod.POST, uri=b"/", headers={b"content-type": b"1"})
+
+        writer.write(os.urandom(1))
+        await writer.flush()
+        writer.finish()
+
+        protocol.data_received(
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n")
+
+        reader = await writer.read_response()
+
+        protocol.connection_lost(None)
+        assert transport_mock._closing is True
+
+        with pytest.raises(ReadAbortedError):
+            await reader.read()
+
+    @helper.run_async_test
+    async def test_local_abort_1(self):
+        """
+        HttpClientProtocol.write_request() -x-> \
+        [HttpRequestWriter.write(), HttpRequestWriter.flush()] -> \
+        HttpRequestWriter.finish() -> \
+        HttpRequestWriter.read_response() -> \
+        HttpResponseReader.read()
+        """
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+
+        writer = await protocol.write_request(HttpRequestMethod.GET, uri=b"/")
+
+        writer.abort()
+        assert transport_mock._closing is True
+
+        with pytest.raises(WriteAbortedError):
+            await writer.flush()
+
+        with pytest.raises(WriteAbortedError):
+            writer.finish()
+
+        with pytest.raises(ReadAbortedError):
+            await writer.read_response()
+
+    @helper.run_async_test
+    async def test_local_abort_2(self):
+        """
+        HttpClientProtocol.write_request() -> \
+        [HttpRequestWriter.write(), HttpRequestWriter.flush()] -x-> \
+        HttpRequestWriter.finish() -> \
+        HttpRequestWriter.read_response() -> \
+        HttpResponseReader.read()
+        """
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+
+        writer = await protocol.write_request(
+            HttpRequestMethod.POST, uri=b"/", headers={b"content-type": b"1"})
+
+        writer.write(os.urandom(1))
+        await writer.flush()
+
+        writer.abort()
+        assert transport_mock._closing is True
+
+        with pytest.raises(WriteAbortedError):
+            writer.finish()
+
+        with pytest.raises(ReadAbortedError):
+            await writer.read_response()
+
+    @helper.run_async_test
+    async def test_local_abort_3(self):
+        """
+        HttpClientProtocol.write_request() -> \
+        [HttpRequestWriter.write(), HttpRequestWriter.flush()] -> \
+        HttpRequestWriter.finish() -x-> \
+        HttpRequestWriter.read_response() -> \
+        HttpResponseReader.read()
+        """
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+
+        writer = await protocol.write_request(
+            HttpRequestMethod.POST, uri=b"/", headers={b"content-type": b"1"})
+
+        writer.write(os.urandom(1))
+        await writer.flush()
+        writer.finish()
+
+        protocol.data_received(
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r")
+
+        writer.abort()
+        assert transport_mock._closing is True
+
+        with pytest.raises(ReadAbortedError):
+            await writer.read_response()
+
+    @helper.run_async_test
+    async def test_local_abort_4(self):
+        """
+        HttpClientProtocol.write_request() -> \
+        [HttpRequestWriter.write(), HttpRequestWriter.flush()] -> \
+        HttpRequestWriter.finish() -> \
+        HttpRequestWriter.read_response() -x-> \
+        HttpResponseReader.read()
+        """
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+
+        writer = await protocol.write_request(
+            HttpRequestMethod.POST, uri=b"/", headers={b"content-type": b"1"})
+
+        writer.write(os.urandom(1))
+        await writer.flush()
+        writer.finish()
+
+        protocol.data_received(
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n")
+
+        reader = await writer.read_response()
+
+        writer.abort()
+        assert transport_mock._closing is True
+
+        with pytest.raises(ReadAbortedError):
+            await reader.read()
+
+    @helper.run_async_test
+    async def test_endless_response_cutoff(self):
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+        protocol.data_received(b"HTTP/1.0 200 OK\r\n\r\n")
+
+        writer = await protocol.write_request(HttpRequestMethod.GET, uri=b"/")
+        writer.finish()
+
+        reader = await writer.read_response()
+
+        for _ in range(0, 5):
+            data = os.urandom(1024)
+            protocol.data_received(data)
+            assert await reader.read(4096) == data
+
+        transport_mock._closing = True
+
+        protocol.connection_lost(OSError())
+
+        with pytest.raises(ReadAbortedError):
+            await reader.read()
 
 
 class HttpServerProtocolTestCase:
