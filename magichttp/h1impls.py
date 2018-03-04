@@ -164,7 +164,7 @@ class _BaseH1StreamManager(
 
         if self._body_len == h1parsers.BODY_IS_ENDLESS:
             reader._append_data(self._buf)
-            self._buf.clear()  # type: ignore
+            self._buf.clear()
 
             return
 

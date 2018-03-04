@@ -309,7 +309,7 @@ class BaseHttpStreamReader(abc.ABC):
 
                     except Exception:
                         data = bytes(self._buf)
-                        self._buf.clear()  # type: ignore
+                        self._buf.clear()
 
                         return data
 
