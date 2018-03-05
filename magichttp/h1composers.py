@@ -117,14 +117,18 @@ def compose_response_initial(
         else:
             refined_headers[b"connection"] = b"Keep-Alive"
 
-    if b"transfer-encoding" not in refined_headers.keys():
-        if b"content-length" not in refined_headers.keys():
+    if req_initial is None or \
+        (req_initial.method != constants.HttpRequestMethod.HEAD and
+            status_code not in (
+                constants.HttpStatusCode.NO_CONTENT,
+                constants.HttpStatusCode.NOT_MODIFIED) and
+            b"transfer-encoding" not in refined_headers.keys() and
+            b"content-length" not in refined_headers.keys()):
+        if version == constants.HttpVersion.V1_1:
+            refined_headers[b"transfer-encoding"] = b"Chunked"
 
-            if version == constants.HttpVersion.V1_1:
-                refined_headers[b"transfer-encoding"] = b"Chunked"
-
-            else:
-                refined_headers[b"connection"] = b"Close"
+        else:
+            refined_headers[b"connection"] = b"Close"
 
     refined_initial = initials.HttpResponseInitial(
 

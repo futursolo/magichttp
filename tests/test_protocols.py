@@ -18,7 +18,7 @@
 from magichttp import HttpClientProtocol, HttpRequestMethod, \
     WriteAfterFinishedError, ReadFinishedError, __version__, \
     HttpServerProtocol, EntityTooLargeError, ReceivedDataMalformedError, \
-    WriteAbortedError, ReadAbortedError
+    WriteAbortedError, ReadAbortedError, HttpStatusCode
 
 from _helper import TestHelper
 
@@ -767,4 +767,213 @@ class HttpServerProtocolTestCase:
         transport_mock = TransportMock()
         protocol.connection_made(transport_mock)
         transport_mock._closing = True
+        protocol.connection_lost(None)
+
+    @helper.run_async_test
+    async def test_simple_request(self):
+        protocol = HttpServerProtocol()
+        transport_mock = TransportMock()
+        protocol.connection_made(transport_mock)
+
+        async def aiter_requests():
+            count = 0
+            async for reader in protocol:
+                with pytest.raises(ReadFinishedError):
+                    await reader.read()
+
+                writer = reader.write_response(HttpStatusCode.OK)
+                writer.finish()
+
+                count += 1
+
+            assert count == 1
+
+        tsk = helper.loop.create_task(aiter_requests())
+
+        await asyncio.sleep(0)
+        assert not tsk.done()
+
+        protocol.data_received(b"GET / HTTP/1.1\r\n\r\n")
+
+        await tsk
+
+        assert protocol.eof_received() is True
+
+        assert transport_mock._closing is True
+        protocol.connection_lost(None)
+
+        assert b"".join(transport_mock._data_chunks) == \
+            (b"HTTP/1.1 200 OK\r\n"
+             b"Server: magichttp/%s\r\n"
+             b"Connection: Close\r\n"
+             b"Transfer-Encoding: Chunked\r\n\r\n0\r\n\r\n") % \
+            __version__.encode()
+
+    @helper.run_async_test
+    async def test_simple_request_10(self):
+        protocol = HttpServerProtocol()
+        transport_mock = TransportMock()
+        protocol.connection_made(transport_mock)
+
+        async def aiter_requests():
+            count = 0
+            async for reader in protocol:
+                with pytest.raises(ReadFinishedError):
+                    await reader.read()
+
+                writer = reader.write_response(HttpStatusCode.OK)
+                writer.finish()
+
+                count += 1
+
+            assert count == 1
+
+        tsk = helper.loop.create_task(aiter_requests())
+
+        await asyncio.sleep(0)
+        assert not tsk.done()
+
+        protocol.data_received(b"GET / HTTP/1.0\r\n\r\n")
+
+        await tsk
+
+        assert protocol.eof_received() is True
+
+        assert transport_mock._closing is True
+        protocol.connection_lost(None)
+
+        assert b"".join(transport_mock._data_chunks) == \
+            (b"HTTP/1.0 200 OK\r\n"
+             b"Server: magichttp/%s\r\n"
+             b"Connection: Close\r\n\r\n") % \
+            __version__.encode()
+
+    @helper.run_async_test
+    async def test_simple_response_with_content_length(self):
+        protocol = HttpServerProtocol()
+        transport_mock = TransportMock()
+        protocol.connection_made(transport_mock)
+
+        data = os.urandom(20)
+
+        async def aiter_requests():
+            count = 0
+            async for reader in protocol:
+                with pytest.raises(ReadFinishedError):
+                    await reader.read()
+
+                writer = reader.write_response(
+                    HttpStatusCode.OK, headers={b"content-length": b"20"})
+                writer.finish(data)
+
+                count += 1
+
+            assert count == 1
+
+        tsk = helper.loop.create_task(aiter_requests())
+
+        await asyncio.sleep(0)
+        assert not tsk.done()
+
+        protocol.data_received(b"GET / HTTP/1.1\r\n\r\n")
+
+        await tsk
+
+        assert protocol.eof_received() is True
+
+        assert transport_mock._closing is True
+        protocol.connection_lost(None)
+
+        assert b"".join(transport_mock._data_chunks) == \
+            (b"HTTP/1.1 200 OK\r\n"
+             b"Content-Length: 20\r\n"
+             b"Server: magichttp/%s\r\n"
+             b"Connection: Close\r\n\r\n") % \
+            __version__.encode() + data
+
+    @helper.run_async_test
+    async def test_keep_alive(self):
+        protocol = HttpServerProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+        protocol.data_received(
+            b"GET / HTTP/1.1\r\nConnection: Keep-Alive\r\n\r\n"
+            b"GET / HTTP/1.1\r\nConnection: Keep-Alive\r\n\r\n")
+
+        async def aiter_requests():
+            count = 0
+
+            async for reader in protocol:
+                assert reader.initial.uri == b"/"
+                assert reader.initial.headers[b"connection"] == b"Keep-Alive"
+                with pytest.raises(ReadFinishedError):
+                    await reader.read()
+
+                writer = reader.write_response(HttpStatusCode.NO_CONTENT)
+
+                assert b"".join(transport_mock._data_chunks) == \
+                    (b"HTTP/1.1 204 No Content\r\n"
+                     b"Server: magichttp/%s\r\n"
+                     b"Connection: Keep-Alive\r\n\r\n") % \
+                    __version__.encode()
+                transport_mock._data_chunks.clear()
+
+                writer.finish()
+
+                assert b"".join(transport_mock._data_chunks) == b""
+
+                count += 1
+
+            assert count == 2
+
+        tsk = helper.loop.create_task(aiter_requests())
+
+        await asyncio.sleep(0)
+        assert not tsk.done()
+
+        assert protocol.eof_received() is True
+
+        await tsk
+
+        transport_mock._closing = True
+        protocol.connection_lost(None)
+
+        with pytest.raises(StopAsyncIteration):
+            await protocol.__aiter__().__anext__()
+
+    @helper.run_async_test
+    async def test_response_with_endless_body(self):
+        protocol = HttpServerProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+        protocol.data_received(b"GET / HTTP/1.0\r\n\r\n")
+
+        async for reader in protocol:
+            with pytest.raises(ReadFinishedError):
+                await reader.read()
+
+            writer = reader.write_response(HttpStatusCode.OK)
+
+            assert b"".join(transport_mock._data_chunks) == \
+                (b"HTTP/1.0 200 OK\r\n"
+                 b"Server: magichttp/%s\r\n"
+                 b"Connection: Close\r\n\r\n") % \
+                __version__.encode()
+            transport_mock._data_chunks.clear()
+
+            for _ in range(0, 5):
+                data = os.urandom(1024)
+                writer.write(data)
+                assert b"".join(transport_mock._data_chunks) == data
+                transport_mock._data_chunks.clear()
+
+            writer.finish()
+            assert b"".join(transport_mock._data_chunks) == b""
+
+        assert protocol.eof_received() is True
+
+        assert transport_mock._closing is True
+
         protocol.connection_lost(None)

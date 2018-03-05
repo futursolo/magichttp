@@ -187,6 +187,75 @@ class ComposeResponseInitialTestCase:
             b"Connection: Close\r\n" +
             b"Transfer-Encoding: Chunked\r\n\r\n")
 
+    def test_204_keep_alive(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.GET,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=b"http",
+            headers=magicdict.TolerantMagicDict(
+                [(b"connection", b"Keep-Alive")]),
+            authority=None)
+
+        res, res_bytes = compose_response_initial(
+            HttpStatusCode.NO_CONTENT, headers=None, req_initial=req)
+
+        assert res.status_code == 204
+        assert res.headers == {
+            b"server": b"magichttp/%s" % __version__.encode(),
+            b"connection": b"Keep-Alive"}
+
+        assert res_bytes == (
+            b"HTTP/1.1 204 No Content\r\n" +
+            b"Server: magichttp/%s\r\n" % __version__.encode() +
+            b"Connection: Keep-Alive\r\n\r\n")
+
+    def test_304_keep_alive(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.GET,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=b"http",
+            headers=magicdict.TolerantMagicDict(
+                [(b"connection", b"Keep-Alive")]),
+            authority=None)
+
+        res, res_bytes = compose_response_initial(
+            HttpStatusCode.NOT_MODIFIED, headers=None, req_initial=req)
+
+        assert res.status_code == 304
+        assert res.headers == {
+            b"server": b"magichttp/%s" % __version__.encode(),
+            b"connection": b"Keep-Alive"}
+
+        assert res_bytes == (
+            b"HTTP/1.1 304 Not Modified\r\n" +
+            b"Server: magichttp/%s\r\n" % __version__.encode() +
+            b"Connection: Keep-Alive\r\n\r\n")
+
+    def test_head_keep_alive(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.HEAD,
+            version=HttpVersion.V1_1,
+            uri=b"/",
+            scheme=b"http",
+            headers=magicdict.TolerantMagicDict(
+                [(b"connection", b"Keep-Alive")]),
+            authority=None)
+
+        res, res_bytes = compose_response_initial(
+            HttpStatusCode.OK, headers=None, req_initial=req)
+
+        assert res.status_code == 200
+        assert res.headers == {
+            b"server": b"magichttp/%s" % __version__.encode(),
+            b"connection": b"Keep-Alive"}
+
+        assert res_bytes == (
+            b"HTTP/1.1 200 OK\r\n" +
+            b"Server: magichttp/%s\r\n" % __version__.encode() +
+            b"Connection: Keep-Alive\r\n\r\n")
+
 
 class ComposeChunkedBodyTestCase:
     def test_normal_chunk(self):
