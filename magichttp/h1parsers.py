@@ -173,6 +173,9 @@ def discover_request_body_length(initial: initials.HttpRequestInitial) -> int:
 def discover_response_body_length(
     initial: initials.HttpResponseInitial, *,
         req_initial: initials.HttpRequestInitial) -> int:
+    if initial.status_code == constants.HttpStatusCode.SWITCHING_PROTOCOLS:
+        return BODY_UPGRADE_REQUIRED
+
     if initial.headers.get_first(
             b"connection", b"").strip().lower() == b"upgrade":
         return BODY_UPGRADE_REQUIRED

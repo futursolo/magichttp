@@ -216,6 +216,8 @@ class _BaseH1StreamManager(
 
             self._maybe_cleanup()
 
+            return
+
         self._set_read_exception(readers.ReadAbortedError(
             "Eof received before the end is found."))
 
@@ -397,6 +399,15 @@ class _H1ClientStreamManager(
 
         self._body_len = h1parsers.discover_response_body_length(
             initial, req_initial=self._writer.initial)
+
+        if self._body_len == h1parsers.BODY_UPGRADE_REQUIRED:
+            if h1parsers.discover_request_body_length(
+                    self._writer.initial) != h1parsers.BODY_UPGRADE_REQUIRED:
+                self._set_read_exception(readers.UnexpectedUpgradeError())
+
+                return
+
+            self._body_len = h1parsers.BODY_IS_ENDLESS
 
         reader = readers.HttpResponseReader(
             self, initial=initial, writer=self._writer)

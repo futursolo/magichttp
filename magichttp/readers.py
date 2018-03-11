@@ -37,6 +37,7 @@ __all__ = [
     "SeparatorNotFoundError",
     "ReceivedDataMalformedError",
     "RequestInitialMalformedError",
+    "UnexpectedUpgradeError",
 
     "BaseHttpStreamReader",
     "HttpRequestReader",
@@ -148,6 +149,14 @@ class RequestInitialMalformedError(ReceivedDataMalformedError):
         return self._delegate.write_response(
             constants.HttpStatusCode(status_code),
             headers=headers)
+
+
+class UnexpectedUpgradeError(ReceivedDataMalformedError):
+    """
+    The response is marked as upgraded or has a status of switching protocol
+    when the client did not request it.
+    """
+    pass
 
 
 class BaseHttpStreamReaderDelegate(abc.ABC):  # pragma: no cover

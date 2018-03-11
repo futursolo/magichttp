@@ -19,7 +19,8 @@ from magichttp import HttpClientProtocol, HttpRequestMethod, \
     WriteAfterFinishedError, ReadFinishedError, __version__, \
     HttpServerProtocol, EntityTooLargeError, ReceivedDataMalformedError, \
     WriteAbortedError, ReadAbortedError, HttpStatusCode, \
-    RequestInitialTooLargeError, RequestInitialMalformedError
+    RequestInitialTooLargeError, RequestInitialMalformedError, \
+    UnexpectedUpgradeError
 
 from _helper import TestHelper
 
@@ -186,6 +187,52 @@ class HttpClientProtocolTestCase:
             data = os.urandom(1024)
             protocol.data_received(data)
             assert await reader.read(4096) == data
+
+        assert protocol.eof_received() is True
+
+        with pytest.raises(ReadFinishedError):
+            await reader.read()
+
+        assert transport_mock._closing is True
+
+        protocol.connection_lost(None)
+
+    @helper.run_async_test
+    async def test_upgrade(self):
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+        protocol.data_received(
+            b"HTTP/1.0 101 Switching Protocol\r\n"
+            b"Connection: Upgrade\r\nUpgrade: WebSocket\r\n\r\n")
+
+        writer = await protocol.write_request(
+            HttpRequestMethod.GET, uri=b"/", headers={
+                b"connection": b"Upgrade", b"Upgrade": b"WebSocket"})
+
+        assert b"".join(transport_mock._data_chunks) == \
+            (b"GET / HTTP/1.1\r\nConnection: Upgrade\r\n"
+             b"Upgrade: WebSocket\r\nUser-Agent: magichttp/%s\r\n"
+             b"Accept: */*\r\n\r\n") % \
+            __version__.encode()
+        transport_mock._data_chunks.clear()
+
+        reader = await writer.read_response()
+
+        for i in range(0, 5):
+            for j in range(0, 5):
+                data = os.urandom(1024)
+                protocol.data_received(data)
+                assert await reader.read(4096) == data
+
+            for k in range(0, 5):
+                data = os.urandom(1024)
+                writer.write(data)
+                assert b"".join(transport_mock._data_chunks) == data
+                transport_mock._data_chunks.clear()
+
+        writer.finish()
 
         assert protocol.eof_received() is True
 
@@ -492,6 +539,25 @@ class HttpClientProtocolTestCase:
         protocol.data_received(b"ABCDEFGH\r\n")
         with pytest.raises(ReceivedDataMalformedError):
             await reader.read()
+
+        assert transport_mock._closing is True
+        protocol.connection_lost(None)
+
+    @helper.run_async_test
+    async def test_unexpected_upgrade(self):
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+        protocol.data_received(
+            b"HTTP/1.1 101 Switching Protocol\r\n"
+            b"Connection: Upgrade\r\nUpgrade: WebSocket\r\n\r\n")
+
+        writer = await protocol.write_request(HttpRequestMethod.GET, uri=b"/")
+        writer.finish()
+
+        with pytest.raises(UnexpectedUpgradeError):
+            await writer.read_response()
 
         assert transport_mock._closing is True
         protocol.connection_lost(None)
