@@ -547,7 +547,8 @@ class _H1ServerStreamManager(
         maybe_reader = self._reader_fur.result() \
             if self._reader_fur.exception() is None else None
 
-        maybe_req_initial = maybe_reader or maybe_reader.initial
+        maybe_req_initial = \
+            maybe_reader.initial if maybe_reader is not None else None
 
         initial, initial_bytes = \
             h1composers.compose_response_initial(
