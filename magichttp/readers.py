@@ -37,7 +37,6 @@ __all__ = [
     "SeparatorNotFoundError",
     "ReceivedDataMalformedError",
     "RequestInitialMalformedError",
-    "UnexpectedUpgradeError",
 
     "BaseHttpStreamReader",
     "HttpRequestReader",
@@ -50,7 +49,7 @@ _HeaderType = Union[
 
 class BaseReadException(Exception):
     """
-    The base class of all the read exceptions.
+    The base class of all read exceptions.
     """
     pass
 
@@ -64,7 +63,7 @@ class EntityTooLargeError(BaseReadException):
 
 class RequestInitialTooLargeError(EntityTooLargeError):
     """
-    The incoming initial is too large.
+    The incoming request initial is too large.
     """
     def __init__(
             self, __delegate: "HttpRequestReaderDelegate", *args: Any) -> None:
@@ -78,7 +77,11 @@ class RequestInitialTooLargeError(EntityTooLargeError):
         ]=constants.HttpStatusCode.REQUEST_HEADER_FIELDS_TOO_LARGE, *,
         headers: Optional[_HeaderType]=None
             ) -> "writers.HttpResponseWriter":
-
+        """
+        When this exception is raised on the server side, this method is used
+        to send a error response instead of
+        :method:`BaseHttpStreamReader.write_response()`.
+        """
         return self._delegate.write_response(
             constants.HttpStatusCode(status_code),
             headers=headers)
@@ -124,7 +127,7 @@ class SeparatorNotFoundError(ReadUnsatisfiableError):
 
 class ReceivedDataMalformedError(BaseReadException):
     """
-    Raised when the received data is unable to be parsed as http messages.
+    Raised when the received data is unable to be parsed as an http message.
     """
     pass
 
@@ -145,18 +148,14 @@ class RequestInitialMalformedError(ReceivedDataMalformedError):
         ]=constants.HttpStatusCode.BAD_REQUEST, *,
         headers: Optional[_HeaderType]=None
             ) -> "writers.HttpResponseWriter":
-
+        """
+        When this exception is raised on the server side, this method is used
+        to send a error response instead of
+        :method:`BaseHttpStreamReader.write_response()`.
+        """
         return self._delegate.write_response(
             constants.HttpStatusCode(status_code),
             headers=headers)
-
-
-class UnexpectedUpgradeError(ReceivedDataMalformedError):
-    """
-    The response is marked as upgraded or has a status of switching protocol
-    when the client did not request it.
-    """
-    pass
 
 
 class BaseHttpStreamReaderDelegate(abc.ABC):  # pragma: no cover
@@ -174,6 +173,10 @@ class BaseHttpStreamReaderDelegate(abc.ABC):  # pragma: no cover
 
 
 class BaseHttpStreamReader(abc.ABC):
+    """
+    The Base class of :class:`HttpRequestReader`
+    and :class:`HttpResponseReader`.
+    """
     __slots__ = (
         "_delegate", "_max_buf_len", "_buf",
         "_wait_for_data_fur", "_read_lock", "_end_appended", "_exc")
@@ -256,10 +259,16 @@ class BaseHttpStreamReader(abc.ABC):
 
     @property
     def max_buf_len(self) -> int:
+        """
+        Return the current maximum buffer length.
+        """
         return self._max_buf_len
 
     @max_buf_len.setter
     def max_buf_len(self, new_max_buf_len: int) -> None:
+        """
+        Replace the current maximum buffer length with the one provided.
+        """
         assert not self.busy(), \
             "You cannot set max buffer length when the reader is busy."
 
@@ -273,10 +282,10 @@ class BaseHttpStreamReader(abc.ABC):
         Read at most n bytes data or if exactly is `True`,
         read exactly n bytes data. If the end has been reached before
         the buffer has the length of data asked, it will
-        raise an :class:`ReadUnsatisfiableError`.
+        raise a :class:`ReadUnsatisfiableError`.
 
-        When :func:`.finished()` is `True`, this method will raise any errors
-        occurred during the read or an :class:`ReadFinishedError`.
+        When :method:`.finished()` is `True`, this method will raise any errors
+        occurred during the read or a :class:`ReadFinishedError`.
         """
         async with self._read_lock:
             self._raise_exc_if_finished()
@@ -338,12 +347,12 @@ class BaseHttpStreamReader(abc.ABC):
 
         When the max size of the buffer has been reached,
         and the separator is not found, this method will raise
-        an :class:`MaxBufferLengthReachedError`.
+        a :class:`MaxBufferLengthReachedError`.
         Similarly, if the end has been reached before found the separator
-        it will raise an `SeparatorNotFoundError`.
+        it will raise a :class:`SeparatorNotFoundError`.
 
-        When :func:`.finished()` is `True`, this method will raise any errors
-        occurred during the read or an :class:`ReadFinishedError`.
+        When :method:`.finished()` is `True`, this method will raise any errors
+        occurred during the read or a :class:`ReadFinishedError`.
         """
         async with self._read_lock:
             self._raise_exc_if_finished()
@@ -392,11 +401,14 @@ class BaseHttpStreamReader(abc.ABC):
 
     def busy(self) -> bool:
         """
-        Return True if the reader is reading.
+        Return `True` if the reader is reading.
         """
         return self._read_lock.locked()
 
     async def wait_end(self) -> None:
+        """
+        Wait until the end has been appended.
+        """
         await self._end_appended.wait()
 
     def end_appended(self) -> bool:
@@ -404,7 +416,7 @@ class BaseHttpStreamReader(abc.ABC):
 
     def finished(self) -> bool:
         """
-        Return True if the reader reached the end of the Request or Response.
+        Return `True` if the reader reached the end of the Request or Response.
         """
         return len(self) == 0 and self._end_appended.is_set()
 
@@ -426,6 +438,9 @@ class HttpRequestReaderDelegate(
 
 
 class HttpRequestReader(BaseHttpStreamReader):
+    """
+    The Reader for reading http requests.
+    """
     __slots__ = ("__delegate", "_initial", "_writer")
 
     def __init__(
@@ -440,10 +455,19 @@ class HttpRequestReader(BaseHttpStreamReader):
 
     @property
     def initial(self) -> "initials.HttpRequestInitial":
+        """
+        The request initial.
+        """
         return self._initial
 
     @property
     def writer(self) -> "writers.HttpResponseWriter":
+        """
+        This property can be used to access the corresponding
+        :class:`writers.HttpResponseWriter` if it has been created using
+        :method:`.write_response()` or it will raise an
+        :class:`AttributeError`.
+        """
         if self._writer is None:
             raise AttributeError("The writer is not ready.")
 
@@ -453,7 +477,9 @@ class HttpRequestReader(BaseHttpStreamReader):
         self, status_code: Union[int, constants.HttpStatusCode], *,
         headers: Optional[_HeaderType]=None
             ) -> "writers.HttpResponseWriter":
-
+        """
+        Write a response to the client.
+        """
         self._writer = self.__delegate.write_response(
             constants.HttpStatusCode(status_code),
             headers=headers)
@@ -466,6 +492,9 @@ class HttpResponseReaderDelegate(BaseHttpStreamReaderDelegate):
 
 
 class HttpResponseReader(BaseHttpStreamReader):
+    """
+    The Reader for reading http responses.
+    """
     __slots__ = ("_initial", "_writer")
 
     def __init__(
@@ -480,8 +509,15 @@ class HttpResponseReader(BaseHttpStreamReader):
 
     @property
     def initial(self) -> "initials.HttpResponseInitial":
+        """
+        The response initial.
+        """
         return self._initial
 
     @property
     def writer(self) -> "writers.HttpRequestWriter":
+        """
+        This property can be used to access the corresponding
+        :class:`writers.HttpRequestWriter`.
+        """
         return self._writer

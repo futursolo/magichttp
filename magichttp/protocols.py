@@ -66,6 +66,10 @@ class BaseHttpProtocolDelegate(abc.ABC):  # pragma: nocover
 
 
 class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
+    """
+    The base protocol for :class:`HttpServerProtocol` and
+    :class:`HttpClientProtocol`.
+    """
     __slots__ = ("_drained_event", "_open_after_eof", "_transport")
 
     _MAX_INITIAL_SIZE = 64 * 1024  # 64K
@@ -95,6 +99,9 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
 
     @property
     def transport(self) -> asyncio.Transport:
+        """
+        Returns :class:`asyncio.Transport`.
+        """
         if self._transport is None:  # pragma: no cover
             raise AttributeError("Transport is not ready.")
 
@@ -127,9 +134,15 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
         return self._open_after_eof
 
     def close(self) -> None:
+        """
+        Close the connection after current stream is finished.
+        """
         self._delegate.close()
 
     async def wait_closed(self) -> None:
+        """
+        Wait until :method:`.connection_lost()` is called.
+        """
         await self._conn_lost.wait()
 
     def connection_lost(self, exc: Optional[BaseException]) -> None:
@@ -155,6 +168,9 @@ class HttpServerProtocolDelegate(BaseHttpProtocolDelegate):  # pragma: no cover
 
 class HttpServerProtocol(
         BaseHttpProtocol, AsyncIterator[readers.HttpRequestReader]):
+    """
+    The http server protocol.
+    """
     __slots__ = ("__delegate",)
 
     def __init__(self) -> None:
@@ -180,6 +196,14 @@ class HttpServerProtocol(
         return self
 
     async def __anext__(self) -> readers.HttpRequestReader:
+        """
+        Returns the next Reuqest reader (if any).
+
+        .. code-block:: python3
+
+            async for reader in protocol:
+                ...
+        """
         try:
             return await self._delegate.read_request()
 
@@ -204,6 +228,9 @@ class HttpClientProtocolDelegate(BaseHttpProtocolDelegate):  # pragma: no cover
 
 
 class HttpClientProtocol(BaseHttpProtocol):
+    """
+    The http client protocol.
+    """
     __slots__ = ("__delegate", "_http_version")
 
     def __init__(
@@ -235,6 +262,9 @@ class HttpClientProtocol(BaseHttpProtocol):
         scheme: Optional[bytes]=None,
         headers: Optional[_HeaderType]=None) -> \
             "writers.HttpRequestWriter":
+        """
+        Send next request to the server.
+        """
         return await self._delegate.write_request(
             method, uri=uri, authority=authority,
             scheme=scheme, headers=headers)

@@ -24,7 +24,6 @@ import magicdict
 
 BODY_IS_CHUNKED = -1
 BODY_IS_ENDLESS = -2
-BODY_UPGRADE_REQUIRED = -3
 
 
 class UnparsableHttpMessage(ValueError):
@@ -156,9 +155,9 @@ def parse_response_initial(
 
 
 def discover_request_body_length(initial: initials.HttpRequestInitial) -> int:
-    if initial.headers.get_first(
-            b"connection", b"").strip().lower() == b"upgrade":
-        return BODY_UPGRADE_REQUIRED
+    if b"upgrade" in [s.strip() for s in initial.headers.get_first(
+            b"connection", b"").lower().split(b",")]:
+        return BODY_IS_ENDLESS
 
     if b"transfer-encoding" in initial.headers:
         if is_chunked_body(initial.headers[b"transfer-encoding"]):
@@ -174,11 +173,7 @@ def discover_response_body_length(
     initial: initials.HttpResponseInitial, *,
         req_initial: initials.HttpRequestInitial) -> int:
     if initial.status_code == constants.HttpStatusCode.SWITCHING_PROTOCOLS:
-        return BODY_UPGRADE_REQUIRED
-
-    if initial.headers.get_first(
-            b"connection", b"").strip().lower() == b"upgrade":
-        return BODY_UPGRADE_REQUIRED
+        return BODY_IS_ENDLESS
 
     # HEAD Requests, and 204/304 Responses have no body.
     if req_initial.method == constants.HttpRequestMethod.HEAD or \

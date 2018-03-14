@@ -12,11 +12,15 @@ Magichttp is an http stack for asyncio, which provides one the ability to create
 their own async http client/server without diving into the http protocol
 implementation.
 
-Under Development
-=================
-Magichttp is still under heavy development(Alpha). It may have unknown bugs.
+Usage
+-----
+See :code:`examples/echo_client.py` and :code:`examples/echo_server.py`.
 
-Use at your own risk.
+Under Development
+-----------------
+Magichttp is in beta. Basic unittests and contract checks are in place;
+however, it still may have unknown bugs. Bug reports and pull requests are
+always welcomed.
 
 License
 -------

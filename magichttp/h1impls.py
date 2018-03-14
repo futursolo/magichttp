@@ -51,6 +51,12 @@ class _ReaderFuture(asyncio.Future, Generic[_T]):
     def cancel(self) -> bool:  # pragma: no cover
         raise NotImplementedError("You cannot cancel this future.")
 
+    def result(self) -> _T:
+        return super().result()  # type: ignore
+
+    async def safe_await(self) -> _T:
+        return await asyncio.shield(self)
+
 
 class _BaseH1StreamManager(
     readers.BaseHttpStreamReaderDelegate,
@@ -159,9 +165,6 @@ class _BaseH1StreamManager(
         assert self._body_len is not None
         reader = self._reader_fur.result()
 
-        if self._body_len == h1parsers.BODY_UPGRADE_REQUIRED:
-            raise NotImplementedError
-
         if self._body_len == h1parsers.BODY_IS_ENDLESS:
             reader._append_data(self._buf)
             self._buf.clear()
@@ -207,9 +210,6 @@ class _BaseH1StreamManager(
         if self._read_finished():
             return
 
-        if self._body_len == h1parsers.BODY_UPGRADE_REQUIRED:
-            raise NotImplementedError
-
         if self._body_len == h1parsers.BODY_IS_ENDLESS:
             reader = self._reader_fur.result()
             reader._append_end(None)
@@ -235,7 +235,7 @@ class _BaseH1StreamManager(
 
     async def _wait_finished(self) -> None:
         with contextlib.suppress(readers.BaseReadException):
-            reader = await asyncio.shield(self._reader_fur)
+            reader = await self._reader_fur.safe_await()
             await reader.wait_end()
 
         await self._writer_ready.wait()
@@ -400,15 +400,6 @@ class _H1ClientStreamManager(
         self._body_len = h1parsers.discover_response_body_length(
             initial, req_initial=self._writer.initial)
 
-        if self._body_len == h1parsers.BODY_UPGRADE_REQUIRED:
-            if h1parsers.discover_request_body_length(
-                    self._writer.initial) != h1parsers.BODY_UPGRADE_REQUIRED:
-                self._set_read_exception(readers.UnexpectedUpgradeError())
-
-                return
-
-            self._body_len = h1parsers.BODY_IS_ENDLESS
-
         reader = readers.HttpResponseReader(
             self, initial=initial, writer=self._writer)
         self._reader_fur.set_result(reader)
@@ -458,7 +449,7 @@ class _H1ClientStreamManager(
         return writer
 
     async def read_response(self) -> "readers.HttpResponseReader":
-        return await asyncio.shield(self._reader_fur)
+        return await self._reader_fur.safe_await()
 
     def _is_last_stream(self) -> Optional[bool]:
         if not self._finished():
@@ -537,7 +528,7 @@ class _H1ServerStreamManager(
 
     async def _read_request(self) -> readers.HttpRequestReader:
         try:
-            return await asyncio.shield(self._reader_fur)
+            return await self._reader_fur.safe_await()
 
         except readers.EntityTooLargeError as e:
             raise readers.RequestInitialTooLargeError(self) from e

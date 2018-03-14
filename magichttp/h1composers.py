@@ -50,7 +50,8 @@ def compose_request_initial(
     scheme: Optional[bytes],
     headers: Optional[_HeaderType]
         ) -> Tuple[initials.HttpRequestInitial, bytes]:
-    refined_headers = magicdict.TolerantMagicDict(headers or {})
+    refined_headers: magicdict.TolerantMagicDict[bytes, bytes] = \
+        magicdict.TolerantMagicDict(headers or {})
 
     refined_headers.setdefault(b"user-agent", _SELF_IDENTIFIER)
     refined_headers.setdefault(b"accept", b"*/*")
@@ -96,7 +97,8 @@ def compose_response_initial(
     else:
         version = req_initial.version
 
-    refined_headers = magicdict.TolerantMagicDict(headers or {})
+    refined_headers: magicdict.TolerantMagicDict[bytes, bytes] = \
+        magicdict.TolerantMagicDict(headers or {})
 
     refined_headers.setdefault(b"server", _SELF_IDENTIFIER)
 
@@ -121,7 +123,8 @@ def compose_response_initial(
         (req_initial.method != constants.HttpRequestMethod.HEAD and
             status_code not in (
                 constants.HttpStatusCode.NO_CONTENT,
-                constants.HttpStatusCode.NOT_MODIFIED) and
+                constants.HttpStatusCode.NOT_MODIFIED,
+                constants.HttpStatusCode.SWITCHING_PROTOCOLS) and
             b"transfer-encoding" not in refined_headers.keys() and
             b"content-length" not in refined_headers.keys()):
         if version == constants.HttpVersion.V1_1:

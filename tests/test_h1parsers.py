@@ -17,7 +17,7 @@
 
 from magichttp.h1parsers import UnparsableHttpMessage, \
      parse_request_initial, parse_response_initial, \
-     discover_request_body_length, BODY_UPGRADE_REQUIRED, \
+     discover_request_body_length, \
      BODY_IS_CHUNKED, discover_response_body_length, BODY_IS_ENDLESS, \
      is_chunked_body, InvalidTransferEncoding, InvalidContentLength, \
      parse_chunk_length, InvalidChunkLength
@@ -145,7 +145,7 @@ class H1DiscoverRequestBodyLengthTestCase:
                 [(b"connection", b"Upgrade"), (b"content-length", b"20")]),
             authority=None)
 
-        assert discover_request_body_length(req) == BODY_UPGRADE_REQUIRED
+        assert discover_request_body_length(req) == BODY_IS_ENDLESS
 
     def test_request_chunked(self):
         req = HttpRequestInitial(
@@ -215,7 +215,7 @@ class H1DiscoverResponseBodyLengthTestCase:
                 [(b"connection", b"Upgrade")]))
 
         assert discover_response_body_length(
-            res, req_initial=req) == BODY_UPGRADE_REQUIRED
+            res, req_initial=req) == BODY_IS_ENDLESS
 
     def test_head_request(self):
         req = HttpRequestInitial(

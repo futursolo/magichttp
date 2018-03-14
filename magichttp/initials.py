@@ -33,6 +33,9 @@ _HeaderType = Union[
 
 
 class HttpRequestInitial:
+    """
+    The reuqest initial.
+    """
     __slots__ = (
         "_method", "_version", "_uri", "_headers", "_authority", "_scheme")
 
@@ -106,6 +109,9 @@ class HttpRequestInitial:
 
 
 class HttpResponseInitial:
+    """
+    The response initial.
+    """
     __slots__ = ("_status_code", "_version", "_headers")
 
     def __init__(

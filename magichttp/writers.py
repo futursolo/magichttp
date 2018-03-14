@@ -36,14 +36,15 @@ __all__ = [
 
 class BaseWriteException(Exception):
     """
-    The base class of all the write exceptions.
+    The base class of all write exceptions.
     """
     pass
 
 
 class WriteAfterFinishedError(EOFError, BaseWriteException):
     """
-    Raised when :func:`BaseHttpStreamWriter.write()` is called after
+    Raised when :method:`BaseHttpStreamWriter.write()` or
+    :method:`BaseHttpStreamWriter.finish()`is called after
     the stream is finished.
     """
     pass
@@ -71,6 +72,10 @@ class BaseHttpStreamWriterDelegate(abc.ABC):  # pragma: no cover
 
 
 class BaseHttpStreamWriter(abc.ABC):
+    """
+    The base class of :class:`HttpRequestWriter`
+    and :class:`HttpResponseWriter`.
+    """
     __slots__ = ("_delegate", "_flush_lock", "_finished", "_exc")
 
     def __init__(self, __delegate: BaseHttpStreamWriterDelegate) -> None:
@@ -162,11 +167,14 @@ class BaseHttpStreamWriter(abc.ABC):
         return self._finished.is_set()
 
     async def wait_finished(self) -> None:
+        """
+        Wait until :method:`.finish()` is called.
+        """
         await self._finished.wait()
 
     def abort(self) -> None:
         """
-        Abort the writer without draining out all the pending buffer.
+        Abort the writer without finishing it.
         """
         self._delegate.abort()
 
@@ -179,6 +187,9 @@ class HttpRequestWriterDelegate(
 
 
 class HttpRequestWriter(BaseHttpStreamWriter):
+    """
+    The Writer for writing http requests.
+    """
     __slots__ = ("__delegate", "_initial", "_reader")
 
     def __init__(
@@ -193,16 +204,28 @@ class HttpRequestWriter(BaseHttpStreamWriter):
 
     @property
     def initial(self) -> "initials.HttpRequestInitial":
+        """
+        The request initial.
+        """
         return self._initial
 
     @property
     def reader(self) -> "readers.HttpResponseReader":
+        """
+        This property can be used to access the corresponding
+        :class:`writers.HttpResponseWriter` if it has been created using
+        :method:`.read_response()` or it will raise an
+        :class:`AttributeError`.
+        """
         if self._reader is None:
             raise AttributeError("The reader is not ready.")
 
         return self._reader
 
     async def read_response(self) -> "readers.HttpResponseReader":
+        """
+        Read the response from the server.
+        """
         self._reader = await self.__delegate.read_response()
 
         return self._reader
@@ -213,6 +236,9 @@ class HttpResponseWriterDelegate(BaseHttpStreamWriterDelegate):
 
 
 class HttpResponseWriter(BaseHttpStreamWriter):
+    """
+    The Writer for writing http responses.
+    """
     __slots__ = ("_initial", "_reader")
 
     def __init__(
@@ -227,10 +253,19 @@ class HttpResponseWriter(BaseHttpStreamWriter):
 
     @property
     def initial(self) -> "initials.HttpResponseInitial":
+        """
+        The response initial.
+        """
         return self._initial
 
     @property
     def reader(self) -> "readers.HttpRequestReader":
+        """
+        This property can be used to access the corresponding
+        :class:`writers.HttpRequestReader`.
+        If an exception happened during reading,
+        it will raise an :class:`AttributeError`.
+        """
         if self._reader is None:
             raise AttributeError(
                 "HttpRequestReader is unavailable due to an "
