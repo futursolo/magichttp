@@ -21,7 +21,7 @@ from magichttp import HttpRequestReader, HttpResponseReader, \
     ReadFinishedError, ReadUnsatisfiableError, MaxBufferLengthReachedError, \
     SeparatorNotFoundError, ReadAbortedError
 
-from _helper import TestHelper
+from test_helper import TestHelper
 
 import pytest
 import asyncio

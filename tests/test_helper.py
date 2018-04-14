@@ -16,6 +16,7 @@
 #   limitations under the License.
 
 import asyncio
+import magichttp
 
 
 class TestHelper:
@@ -33,3 +34,22 @@ class TestHelper:
             self.loop.run_until_complete(test_coro(_self, *args, **kwargs))
 
         return wrapper
+
+    def get_version_str(self):
+        return f"magichttp/{magichttp.__version__}"
+
+    def get_version_bytes(self):
+        return self.get_version_str().encode()
+
+    def assert_initial_bytes(self, buf, first_line, *header_lines):
+        buf_initial = buf.split(b"\r\n\r\n")[0]
+        buf_parts = buf_initial.split(b"\r\n")
+
+        assert buf_parts.pop(0) == first_line
+
+        assert len(buf_parts) == len(set(buf_parts))
+        assert len(buf_parts) == len(header_lines)
+
+        for line in header_lines:
+            line = line % {b"self_ver_bytes": self.get_version_bytes()}
+            assert line in buf_parts

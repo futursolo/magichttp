@@ -23,51 +23,50 @@ from . import _version
 
 import magicdict
 
-_SELF_IDENTIFIER = f"magichttp/{_version.__version__}".encode()
+_SELF_IDENTIFIER = f"magichttp/{_version.__version__}"
 
 _HeaderType = Union[
-    Mapping[bytes, bytes],
-    Iterable[Tuple[bytes, bytes]]]
+    Mapping[str, str],
+    Iterable[Tuple[str, str]]]
 
 
 def _compose_initial_bytes(
-    *first_line_args: bytes,
-        headers: magicdict.FrozenTolerantMagicDict[bytes, bytes]) -> bytes:
-    buf = [b" ".join(first_line_args), b"\r\n"]
+        *first_line_args: str, headers: Mapping[str, str]) -> bytes:
+    buf = [" ".join(first_line_args), "\r\n"]
 
     for key, value in headers.items():
-        buf.append(b"%s: %s\r\n" % (key.title(), value))
+        buf.append("%s: %s\r\n" % (key.title(), value))
 
-    buf.append(b"\r\n")
+    buf.append("\r\n")
 
-    return b"".join(buf)
+    return "".join(buf).encode("latin-1")
 
 
 def compose_request_initial(
     method: constants.HttpRequestMethod, *,
-    uri: bytes, authority: Optional[bytes],
+    uri: str, authority: Optional[str],
     version: constants.HttpVersion,
-    scheme: Optional[bytes],
+    scheme: Optional[str],
     headers: Optional[_HeaderType]
         ) -> Tuple[initials.HttpRequestInitial, bytes]:
-    refined_headers: magicdict.TolerantMagicDict[bytes, bytes] = \
+    refined_headers: magicdict.TolerantMagicDict[str, str] = \
         magicdict.TolerantMagicDict(headers or {})
 
-    refined_headers.setdefault(b"user-agent", _SELF_IDENTIFIER)
-    refined_headers.setdefault(b"accept", b"*/*")
+    refined_headers.setdefault("user-agent", _SELF_IDENTIFIER)
+    refined_headers.setdefault("accept", "*/*")
 
-    if b"connection" not in refined_headers.keys():
+    if "connection" not in refined_headers.keys():
         if version == constants.HttpVersion.V1_1:
-            refined_headers[b"connection"] = b"Keep-Alive"
+            refined_headers["connection"] = "Keep-Alive"
 
         else:
-            refined_headers[b"connection"] = b"Close"
+            refined_headers["connection"] = "Close"
 
     if authority is not None:
-        refined_headers.setdefault(b"host", authority)
+        refined_headers.setdefault("host", authority)
 
     if scheme is not None:
-        refined_headers.setdefault(b"x-scheme", scheme)
+        refined_headers.setdefault("x-scheme", scheme)
 
     refined_initial = initials.HttpRequestInitial(
         method,
@@ -97,27 +96,27 @@ def compose_response_initial(
     else:
         version = req_initial.version
 
-    refined_headers: magicdict.TolerantMagicDict[bytes, bytes] = \
+    refined_headers: magicdict.TolerantMagicDict[str, str] = \
         magicdict.TolerantMagicDict(headers or {})
 
-    refined_headers.setdefault(b"server", _SELF_IDENTIFIER)
+    refined_headers.setdefault("server", _SELF_IDENTIFIER)
 
     if status_code >= 400:
-        refined_headers[b"connection"] = b"Close"
+        refined_headers["connection"] = "Close"
 
-    elif b"connection" not in refined_headers.keys():
+    elif "connection" not in refined_headers.keys():
         if version != constants.HttpVersion.V1_1:
-            refined_headers[b"connection"] = b"Close"
+            refined_headers["connection"] = "Close"
 
         elif req_initial is None or \
-                b"connection" not in req_initial.headers.keys():
-            refined_headers[b"connection"] = b"Close"
+                "connection" not in req_initial.headers.keys():
+            refined_headers["connection"] = "Close"
 
-        elif req_initial.headers[b"connection"].lower() != b"keep-alive":
-            refined_headers[b"connection"] = b"Close"
+        elif req_initial.headers["connection"].lower() != "keep-alive":
+            refined_headers["connection"] = "Close"
 
         else:
-            refined_headers[b"connection"] = b"Keep-Alive"
+            refined_headers["connection"] = "Keep-Alive"
 
     if req_initial is None or \
         (req_initial.method != constants.HttpRequestMethod.HEAD and
@@ -125,13 +124,13 @@ def compose_response_initial(
                 constants.HttpStatusCode.NO_CONTENT,
                 constants.HttpStatusCode.NOT_MODIFIED,
                 constants.HttpStatusCode.SWITCHING_PROTOCOLS) and
-            b"transfer-encoding" not in refined_headers.keys() and
-            b"content-length" not in refined_headers.keys()):
+            "transfer-encoding" not in refined_headers.keys() and
+            "content-length" not in refined_headers.keys()):
         if version == constants.HttpVersion.V1_1:
-            refined_headers[b"transfer-encoding"] = b"Chunked"
+            refined_headers["transfer-encoding"] = "Chunked"
 
         else:
-            refined_headers[b"connection"] = b"Close"
+            refined_headers["connection"] = "Close"
 
     refined_initial = initials.HttpResponseInitial(
 
@@ -140,8 +139,8 @@ def compose_response_initial(
 
     return (refined_initial, _compose_initial_bytes(
             version.value,
-            str(status_code.value).encode(),
-            status_code.phrase.encode(),
+            str(status_code.value),
+            status_code.phrase,
             headers=refined_initial.headers))
 
 

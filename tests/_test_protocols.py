@@ -21,7 +21,7 @@ from magichttp import HttpClientProtocol, HttpRequestMethod, \
     WriteAbortedError, ReadAbortedError, HttpStatusCode, \
     RequestInitialTooLargeError, RequestInitialMalformedError
 
-from _helper import TestHelper
+from test_helper import TestHelper
 
 import pytest
 import os

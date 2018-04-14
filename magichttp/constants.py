@@ -22,20 +22,20 @@ __all__ = ["HttpVersion", "HttpRequestMethod", "HttpStatusCode"]
 
 
 class HttpVersion(enum.Enum):
-    V1_0 = b"HTTP/1.0"
-    V1_1 = b"HTTP/1.1"
+    V1_0 = "HTTP/1.0"
+    V1_1 = "HTTP/1.1"
 
 
 class HttpRequestMethod(enum.Enum):
-    GET = b"GET"
-    POST = b"POST"
-    PUT = b"PUT"
-    DELETE = b"DELETE"
-    HEAD = b"HEAD"
-    OPTIONS = b"OPTIONS"
-    CONNECT = b"CONNECT"
-    TRACE = b"TRACE"
-    PATCH = b"PATCH"
+    GET = "GET"
+    POST = "POST"
+    PUT = "PUT"
+    DELETE = "DELETE"
+    HEAD = "HEAD"
+    OPTIONS = "OPTIONS"
+    CONNECT = "CONNECT"
+    TRACE = "TRACE"
+    PATCH = "PATCH"
 
 
 HttpStatusCode = http.HTTPStatus
