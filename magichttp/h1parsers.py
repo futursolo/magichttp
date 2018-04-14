@@ -46,52 +46,52 @@ class InvalidChunkLength(InvalidHeader):
     pass
 
 
-def is_chunked_body(te_header_bytes: bytes) -> bool:
+def is_chunked_body(te_header_bytes: str) -> bool:
     te_header_pieces = [
-        i.strip().lower() for i in te_header_bytes.split(b";") if i]
+        i.strip().lower() for i in te_header_bytes.split(";") if i]
 
     last_piece = te_header_pieces.pop(-1)
 
-    if (b"identity" == last_piece and te_header_pieces) or \
-            b"identity" in te_header_pieces:
+    if ("identity" == last_piece and te_header_pieces) or \
+            "identity" in te_header_pieces:
         raise InvalidTransferEncoding(
             "Identity is not the only transfer encoding.")
 
-    if b"chunked" in te_header_pieces:
+    if "chunked" in te_header_pieces:
         raise InvalidTransferEncoding(
             "Chunked transfer encoding found, but not at last.")
 
-    return last_piece == b"chunked"
+    return last_piece == "chunked"
 
 
-def _parse_content_length_header(cl_header_bytes: bytes) -> int:
+def _parse_content_length_header(cl_header_str: str) -> int:
     try:
-        return int(cl_header_bytes, 10)
+        return int(cl_header_str, 10)
 
     except ValueError as e:
         raise InvalidContentLength(
             "The value of Content-Length is not valid.") from e
 
 
-def _split_initial_lines(buf: bytearray) -> Optional[List[bytes]]:
+def _split_initial_lines(buf: bytearray) -> Optional[List[str]]:
     pos = buf.find(b"\r\n\r\n")
 
     if pos == -1:
         return None
 
-    initial_buf = bytes(buf[:pos])
+    initial_buf = buf[:pos]
     del buf[:pos + 4]
 
-    return initial_buf.split(b"\r\n")
+    return initial_buf.decode("latin-1").split("\r\n")
 
 
-def parse_headers(header_lines: List[bytes]) -> \
-        magicdict.FrozenTolerantMagicDict[bytes, bytes]:
-    headers: List[Tuple[bytes, bytes]] = []
+def parse_headers(header_lines: List[str]) -> \
+        magicdict.FrozenTolerantMagicDict[str, str]:
+    headers: List[Tuple[str, str]] = []
 
     try:
         for line in header_lines:
-            name, value = line.split(b":", 1)
+            name, value = line.split(":", 1)
 
             headers.append((name.strip(), value.strip()))
 
@@ -109,7 +109,7 @@ def parse_request_initial(
         return None
 
     try:
-        method_buf, path_buf, version_buf = initial_lines.pop(0).split(b" ")
+        method_buf, path_buf, version_buf = initial_lines.pop(0).split(" ")
 
         headers = parse_headers(initial_lines)
 
@@ -117,8 +117,8 @@ def parse_request_initial(
             constants.HttpRequestMethod(method_buf.upper().strip()),
             version=constants.HttpVersion(version_buf.upper().strip()),
             uri=path_buf,
-            authority=headers.get(b"host", None),
-            scheme=headers.get_first(b"x-scheme", None),
+            authority=headers.get("host", None),
+            scheme=headers.get_first("x-scheme", None),
             headers=headers)
 
     except InvalidHeader:
@@ -139,7 +139,7 @@ def parse_response_initial(
 
     try:
         version_buf, status_code_buf, *status_text = \
-            initial_lines.pop(0).split(b" ")
+            initial_lines.pop(0).split(" ")
 
         return initials.HttpResponseInitial(
             constants.HttpStatusCode(int(status_code_buf, 10)),
@@ -155,16 +155,16 @@ def parse_response_initial(
 
 
 def discover_request_body_length(initial: initials.HttpRequestInitial) -> int:
-    if b"upgrade" in [s.strip() for s in initial.headers.get_first(
-            b"connection", b"").lower().split(b",")]:
+    if "upgrade" in [s.strip() for s in initial.headers.get_first(
+            "connection", "").lower().split(",")]:
         return BODY_IS_ENDLESS
 
-    if b"transfer-encoding" in initial.headers:
-        if is_chunked_body(initial.headers[b"transfer-encoding"]):
+    if "transfer-encoding" in initial.headers:
+        if is_chunked_body(initial.headers["transfer-encoding"]):
             return BODY_IS_CHUNKED
 
-    if b"content-length" in initial.headers:
-        return _parse_content_length_header(initial.headers[b"content-length"])
+    if "content-length" in initial.headers:
+        return _parse_content_length_header(initial.headers["content-length"])
 
     return 0
 
@@ -180,15 +180,15 @@ def discover_response_body_length(
             initial.status_code in (204, 304):
         return 0
 
-    if b"transfer-encoding" in initial.headers:
-        if is_chunked_body(initial.headers[b"transfer-encoding"]):
+    if "transfer-encoding" in initial.headers:
+        if is_chunked_body(initial.headers["transfer-encoding"]):
             return BODY_IS_CHUNKED
 
-    if b"content-length" not in initial.headers:
+    if "content-length" not in initial.headers:
         # Read until close.
         return BODY_IS_ENDLESS
 
-    return _parse_content_length_header(initial.headers[b"content-length"])
+    return _parse_content_length_header(initial.headers["content-length"])
 
 
 def parse_chunk_length(buf: bytearray) -> Optional[int]:
