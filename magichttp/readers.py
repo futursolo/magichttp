@@ -43,8 +43,8 @@ __all__ = [
     "HttpResponseReader"]
 
 _HeaderType = Union[
-    Mapping[bytes, bytes],
-    Iterable[Tuple[bytes, bytes]]]
+    Mapping[str, str],
+    Iterable[Tuple[str, str]]]
 
 
 class BaseReadException(Exception):
