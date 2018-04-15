@@ -28,8 +28,8 @@ __all__ = [
     "HttpRequestInitial", "HttpResponseInitial"]
 
 _HeaderType = Union[
-    Mapping[bytes, bytes],
-    Iterable[Tuple[bytes, bytes]]]
+    Mapping[str, str],
+    Iterable[Tuple[str, str]]]
 
 
 class HttpRequestInitial:
@@ -41,10 +41,10 @@ class HttpRequestInitial:
 
     def __init__(
         self, method: "constants.HttpRequestMethod", *,
-        uri: bytes, authority: Optional[bytes],
+        uri: str, authority: Optional[str],
         version: "constants.HttpVersion",
-        scheme: Optional[bytes],
-        headers: "magicdict.FrozenTolerantMagicDict[bytes, bytes]"
+        scheme: Optional[str],
+        headers: "magicdict.FrozenTolerantMagicDict[str, str]"
             ) -> None:
         self._method = method
         self._version = version
@@ -64,25 +64,25 @@ class HttpRequestInitial:
         return self._version
 
     @property
-    def uri(self) -> bytes:
+    def uri(self) -> str:
         return self._uri
 
     @property
-    def authority(self) -> bytes:
+    def authority(self) -> str:
         if self._authority is None:
             raise AttributeError("Authority is not available.")
 
         return self._authority
 
     @property
-    def scheme(self) -> bytes:
+    def scheme(self) -> str:
         if self._scheme is None:
             raise AttributeError("Scheme is not available.")
 
         return self._scheme
 
     @property
-    def headers(self) -> "magicdict.FrozenTolerantMagicDict[bytes, bytes]":
+    def headers(self) -> "magicdict.FrozenTolerantMagicDict[str, str]":
         return self._headers
 
     def __repr__(self) -> str:  # pragma: no cover
@@ -117,7 +117,7 @@ class HttpResponseInitial:
     def __init__(
         self, status_code: "constants.HttpStatusCode", *,
         version: "constants.HttpVersion",
-        headers: "magicdict.FrozenTolerantMagicDict[bytes, bytes]"
+        headers: "magicdict.FrozenTolerantMagicDict[str, str]"
             ) -> None:
         self._status_code = status_code
         self._version = version
@@ -133,7 +133,7 @@ class HttpResponseInitial:
         return self._version
 
     @property
-    def headers(self) -> "magicdict.FrozenTolerantMagicDict[bytes, bytes]":
+    def headers(self) -> "magicdict.FrozenTolerantMagicDict[str, str]":
         return self._headers
 
     def __repr__(self) -> str:  # pragma: no cover

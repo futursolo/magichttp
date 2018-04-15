@@ -43,8 +43,8 @@ __all__ = [
     "HttpResponseReader"]
 
 _HeaderType = Union[
-    Mapping[bytes, bytes],
-    Iterable[Tuple[bytes, bytes]]]
+    Mapping[str, str],
+    Iterable[Tuple[str, str]]]
 
 
 class BaseReadException(Exception):
@@ -469,7 +469,7 @@ class HttpRequestReader(BaseHttpStreamReader):
         :class:`AttributeError`.
         """
         if self._writer is None:
-            raise AttributeError("The writer is not ready.")
+            raise AttributeError("Writer is not ready.")
 
         return self._writer
 

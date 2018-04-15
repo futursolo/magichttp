@@ -20,7 +20,7 @@ from magichttp.writers import HttpRequestWriterDelegate, \
     HttpResponseWriterDelegate
 from magichttp import WriteAfterFinishedError, WriteAbortedError
 
-from _helper import TestHelper
+from test_helper import TestHelper
 
 import asyncio
 import os

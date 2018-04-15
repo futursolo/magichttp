@@ -32,8 +32,8 @@ if typing.TYPE_CHECKING:  # pragma: no cover
     from . import constants  # noqa: F401
 
 _HeaderType = Union[
-    Mapping[bytes, bytes],
-    Iterable[Tuple[bytes, bytes]]]
+    Mapping[str, str],
+    Iterable[Tuple[str, str]]]
 
 _T = TypeVar("_T")
 
@@ -406,8 +406,8 @@ class _H1ClientStreamManager(
 
     def _write_request(
         self, method: "constants.HttpRequestMethod", *,
-        uri: bytes, authority: Optional[bytes],
-        scheme: Optional[bytes],
+        uri: str, authority: Optional[str],
+        scheme: Optional[str],
             headers: Optional[_HeaderType]) -> writers.HttpRequestWriter:
         if self._writer is not None:
             raise RuntimeError("You cannot write request twice.")
@@ -422,12 +422,12 @@ class _H1ClientStreamManager(
                 scheme=scheme, headers=headers)
 
         try:
-            if b"transfer-encoding" not in initial.headers.keys():
+            if "transfer-encoding" not in initial.headers.keys():
                 self._write_chunked_body = False
 
             else:
                 self._write_chunked_body = h1parsers.is_chunked_body(
-                    initial.headers[b"transfer-encoding"])
+                    initial.headers["transfer-encoding"])
 
             self._transport.write(initial_bytes)
 
@@ -471,13 +471,13 @@ class _H1ClientStreamManager(
 
                 else:
                     remote_conn_header = reader.initial.headers.get(
-                        b"connection", b"").lower()
+                        "connection", "").lower()
 
                     local_conn_header = self._writer.initial.headers.get(
-                        b"connection", b"").lower()
+                        "connection", "").lower()
 
                     if remote_conn_header == local_conn_header == \
-                            b"keep-alive":
+                            "keep-alive":
                         self._last_stream = False
 
                     else:
@@ -558,12 +558,12 @@ class _H1ServerStreamManager(
                 req_initial=maybe_req_initial)
 
         try:
-            if b"transfer-encoding" not in initial.headers.keys():
+            if "transfer-encoding" not in initial.headers.keys():
                 self._write_chunked_body = False
 
             else:
                 self._write_chunked_body = h1parsers.is_chunked_body(
-                    initial.headers[b"transfer-encoding"])
+                    initial.headers["transfer-encoding"])
 
             self._transport.write(initial_bytes)
 
@@ -601,12 +601,12 @@ class _H1ServerStreamManager(
                 reader = self._reader_fur.result()
 
                 remote_conn_header = reader.initial.headers.get(
-                    b"connection", b"").lower()
+                    "connection", "").lower()
 
                 local_conn_header = self._writer.initial.headers.get(
-                    b"connection", b"").lower()
+                    "connection", "").lower()
 
-                if remote_conn_header == local_conn_header == b"keep-alive":
+                if remote_conn_header == local_conn_header == "keep-alive":
                     self._last_stream = False
 
                 else:
@@ -764,8 +764,8 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
 
     async def write_request(
         self, method: "constants.HttpRequestMethod", *,
-        uri: bytes, authority: Optional[bytes],
-        scheme: Optional[bytes],
+        uri: str, authority: Optional[str],
+        scheme: Optional[str],
             headers: Optional[_HeaderType]) -> writers.HttpRequestWriter:
         async with self._write_request_lock:
             if self._request_written:
