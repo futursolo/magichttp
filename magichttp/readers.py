@@ -469,7 +469,7 @@ class HttpRequestReader(BaseHttpStreamReader):
         :class:`AttributeError`.
         """
         if self._writer is None:
-            raise AttributeError("The writer is not ready.")
+            raise AttributeError("Writer is not ready.")
 
         return self._writer
 

@@ -34,8 +34,8 @@ __all__ = [
     "HttpClientProtocol"]
 
 _HeaderType = Union[
-    Mapping[bytes, bytes],
-    Iterable[Tuple[bytes, bytes]]]
+    Mapping[str, str],
+    Iterable[Tuple[str, str]]]
 
 
 class BaseHttpProtocolDelegate(abc.ABC):  # pragma: nocover
@@ -221,8 +221,8 @@ class HttpClientProtocolDelegate(BaseHttpProtocolDelegate):  # pragma: no cover
     @abc.abstractmethod
     async def write_request(
         self, method: constants.HttpRequestMethod, *,
-        uri: bytes, authority: Optional[bytes],
-        scheme: Optional[bytes],
+        uri: str, authority: Optional[str],
+        scheme: Optional[str],
             headers: Optional[_HeaderType]) -> "writers.HttpRequestWriter":
         raise NotImplementedError
 
@@ -258,8 +258,8 @@ class HttpClientProtocol(BaseHttpProtocol):
 
     async def write_request(
         self, method: constants.HttpRequestMethod, *,
-        uri: bytes=b"/", authority: Optional[bytes]=None,
-        scheme: Optional[bytes]=None,
+        uri: str="/", authority: Optional[str]=None,
+        scheme: Optional[str]=None,
         headers: Optional[_HeaderType]=None) -> \
             "writers.HttpRequestWriter":
         """
