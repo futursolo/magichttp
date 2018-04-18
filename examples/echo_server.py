@@ -86,7 +86,7 @@ class EchoHttpServer:
         print(f"Request Body: {body}")
 
         writer = req_reader.write_response(
-            200, headers={b"Content-Type": b"text/plain"})
+            200, headers={"Content-Type": "text/plain"})
         print(f"Response Sent: {writer.initial}")
 
         writer.write(b"Got it!")

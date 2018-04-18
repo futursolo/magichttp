@@ -6,6 +6,9 @@ magichttp
 .. image:: https://coveralls.io/repos/github/futursolo/magichttp/badge.svg?branch=master
     :target: https://coveralls.io/github/futursolo/magichttp
 
+.. image:: https://img.shields.io/pypi/v/magichttp.svg
+    :target: https://pypi.org/project/magichttp/
+
 Asynchronous http, made easy.
 
 Magichttp is an http stack for asyncio, which provides one the ability to create

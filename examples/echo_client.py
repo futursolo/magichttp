@@ -61,9 +61,9 @@ async def get_page(url: str) -> Tuple[magichttp.HttpResponseInitial, bytes]:
 
     writer = await protocol.write_request(
         magichttp.HttpRequestMethod.Get,
-        uri=parsed_url.path.encode(),
-        authority=parsed_url.netloc.encode(),
-        scheme=parsed_url.scheme.encode())
+        uri=parsed_url.path,
+        authority=parsed_url.netloc,
+        scheme=parsed_url.scheme)
 
     print(f"Request Sent: {writer.initial}")
 
