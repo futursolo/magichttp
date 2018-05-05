@@ -155,13 +155,12 @@ def parse_response_initial(
 
 
 def discover_request_body_length(initial: initials.HttpRequestInitial) -> int:
-    if "upgrade" in [s.strip() for s in initial.headers.get_first(
-            "connection", "").lower().split(",")]:
+    if "upgrade" in initial.headers.keys():
         return BODY_IS_ENDLESS
 
-    if "transfer-encoding" in initial.headers:
-        if is_chunked_body(initial.headers["transfer-encoding"]):
-            return BODY_IS_CHUNKED
+    if "transfer-encoding" in initial.headers and \
+            is_chunked_body(initial.headers["transfer-encoding"]):
+        return BODY_IS_CHUNKED
 
     if "content-length" in initial.headers:
         return _parse_content_length_header(initial.headers["content-length"])
@@ -175,9 +174,13 @@ def discover_response_body_length(
     if initial.status_code == constants.HttpStatusCode.SWITCHING_PROTOCOLS:
         return BODY_IS_ENDLESS
 
-    # HEAD Requests, and 204/304 Responses have no body.
-    if req_initial.method == constants.HttpRequestMethod.HEAD or \
-            initial.status_code in (204, 304):
+    # HEAD/CONNECT Requests and 204/304 Responses have no body.
+    if req_initial.method in (
+        constants.HttpRequestMethod.HEAD,
+        constants.HttpRequestMethod.CONNECT) or \
+            initial.status_code in (
+                constants.HttpStatusCode.NO_CONTENT,
+                constants.HttpStatusCode.NOT_MODIFIED):
         return 0
 
     if "transfer-encoding" in initial.headers:

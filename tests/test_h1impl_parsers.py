@@ -142,7 +142,8 @@ class H1DiscoverRequestBodyLengthTestCase:
             uri="/",
             scheme=None,
             headers=magicdict.FrozenTolerantMagicDict(
-                [("connection", "Upgrade"), ("content-length", "20")]),
+                [("connection", "Upgrade"), ("upgrade", "My-Super-Proto"),
+                 ("content-length", "20")]),
             authority=None)
 
         assert discover_request_body_length(req) == BODY_IS_ENDLESS
