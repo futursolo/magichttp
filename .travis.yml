@@ -19,6 +19,9 @@ matrix:
 
     - os: linux
       python: 3.6.4
+
+    - os: linux
+      python: 3.6.5
       env: DEPLOY_PYPI=1
 
     - os: linux
