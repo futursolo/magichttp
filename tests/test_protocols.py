@@ -89,8 +89,7 @@ class HttpClientProtocolTestCase:
             transport_mock._pop_stored_data(),
             b"GET / HTTP/1.1",
             b"User-Agent: %(self_ver_bytes)s",
-            b"Accept: */*",
-            b"Connection: Keep-Alive")
+            b"Accept: */*")
 
         assert protocol.eof_received() is True
 
@@ -118,8 +117,8 @@ class HttpClientProtocolTestCase:
 
         protocol.connection_made(transport_mock)
         protocol.data_received(
-            b"HTTP/1.1 204 NO CONTENT\r\nConnection: Keep-Alive\r\n\r\n"
-            b"HTTP/1.1 204 NO CONTENT\r\nConnection: Keep-Alive\r\n\r\n")
+            b"HTTP/1.1 204 NO CONTENT\r\n\r\n"
+            b"HTTP/1.1 204 NO CONTENT\r\n\r\n")
 
         for _ in range(0, 2):
             writer = await protocol.write_request(
@@ -131,8 +130,7 @@ class HttpClientProtocolTestCase:
                 b"GET / HTTP/1.1",
                 b"Content-Length: 5",
                 b"User-Agent: %(self_ver_bytes)s",
-                b"Accept: */*",
-                b"Connection: Keep-Alive")
+                b"Accept: */*")
 
             writer.write(b"12345")
             await writer.flush()
@@ -148,7 +146,7 @@ class HttpClientProtocolTestCase:
                 await reader.read()
 
             assert reader.initial.status_code == 204
-            assert reader.initial.headers == {"connection": "Keep-Alive"}
+            assert reader.initial.headers == {}
 
         assert protocol.eof_received() is True
         protocol.connection_lost(None)
@@ -222,7 +220,6 @@ class HttpClientProtocolTestCase:
             transport_mock._pop_stored_data(),
             b"GET / HTTP/1.1",
             b"User-Agent: %(self_ver_bytes)s",
-            b"Accept: */*",
             b"Connection: Upgrade",
             b"Upgrade: WebSocket")
 
@@ -272,7 +269,7 @@ class HttpClientProtocolTestCase:
         async def read_data():
             assert await reader.read(5, exactly=True) == data
 
-        tsk = helper.loop.create_task(read_data())
+        tsk = helper.create_task(read_data())
 
         await asyncio.sleep(0)
         assert tsk.done() is False
@@ -327,7 +324,7 @@ class HttpClientProtocolTestCase:
         async def read_data():
             assert await reader.read() == data
 
-        tsk = helper.loop.create_task(read_data())
+        tsk = helper.create_task(read_data())
         await asyncio.sleep(0)
 
         assert transport_mock._paused is False
@@ -351,7 +348,7 @@ class HttpClientProtocolTestCase:
         async def flush_data():
             await writer.flush()
 
-        tsk = helper.loop.create_task(flush_data())
+        tsk = helper.create_task(flush_data())
         await asyncio.sleep(0)
 
         assert tsk.done() is False
@@ -378,7 +375,7 @@ class HttpClientProtocolTestCase:
 
         protocol.connection_made(transport_mock)
         protocol.data_received(
-            b"HTTP/1.1 204 NO CONTENT\r\nConnection: Keep-Alive\r\n\r\n")
+            b"HTTP/1.1 204 NO CONTENT\r\n\r\n")
 
         writer = await protocol.write_request(
             HttpRequestMethod.GET, uri="/",
@@ -389,7 +386,6 @@ class HttpClientProtocolTestCase:
             b"GET / HTTP/1.1",
             b"User-Agent: %(self_ver_bytes)s",
             b"Accept: */*",
-            b"Connection: Keep-Alive",
             b"Content-Length: 5")
 
         writer.write(b"12345")
@@ -406,7 +402,7 @@ class HttpClientProtocolTestCase:
             await reader.read()
 
         assert reader.initial.status_code == 204
-        assert reader.initial.headers == {"connection": "Keep-Alive"}
+        assert reader.initial.headers == {}
 
         protocol.close()
 
@@ -422,7 +418,7 @@ class HttpClientProtocolTestCase:
 
         protocol.connection_made(transport_mock)
         protocol.data_received(
-            b"HTTP/1.1 204 NO CONTENT\r\nConnection: Keep-Alive\r\n\r\n")
+            b"HTTP/1.1 204 NO CONTENT\r\n\r\n")
 
         writer = await protocol.write_request(
             HttpRequestMethod.GET, uri="/",
@@ -433,7 +429,7 @@ class HttpClientProtocolTestCase:
         async def wait_closed():
             await protocol.wait_closed()
 
-        tsk = helper.loop.create_task(wait_closed())
+        tsk = helper.create_task(wait_closed())
         await asyncio.sleep(0)
 
         assert tsk.done() is False
@@ -445,7 +441,6 @@ class HttpClientProtocolTestCase:
             b"GET / HTTP/1.1",
             b"User-Agent: %(self_ver_bytes)s",
             b"Accept: */*",
-            b"Connection: Keep-Alive",
             b"Content-Length: 5")
 
         writer.write(b"12345")
@@ -462,7 +457,7 @@ class HttpClientProtocolTestCase:
             await reader.read()
 
         assert reader.initial.status_code == 204
-        assert reader.initial.headers == {"connection": "Keep-Alive"}
+        assert reader.initial.headers == {}
 
         assert transport_mock._closing is True
 
@@ -869,12 +864,12 @@ class HttpServerProtocolTestCase:
 
             assert count == 1
 
-        tsk = helper.loop.create_task(aiter_requests())
+        tsk = helper.create_task(aiter_requests())
 
         await asyncio.sleep(0)
         assert not tsk.done()
 
-        protocol.data_received(b"GET / HTTP/1.1\r\n\r\n")
+        protocol.data_received(b"GET / HTTP/1.1\r\nConnection: Close\r\n\r\n")
 
         await tsk
 
@@ -913,7 +908,7 @@ class HttpServerProtocolTestCase:
 
             assert count == 1
 
-        tsk = helper.loop.create_task(aiter_requests())
+        tsk = helper.create_task(aiter_requests())
 
         await asyncio.sleep(0)
         assert not tsk.done()
@@ -954,13 +949,14 @@ class HttpServerProtocolTestCase:
 
             assert count == 1
 
-        tsk = helper.loop.create_task(aiter_requests())
+        tsk = helper.create_task(aiter_requests())
 
         await asyncio.sleep(0)
         assert not tsk.done()
 
         protocol.data_received(
-            b"GET / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n\r\n"
+            b"GET / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n"
+            b"Connection: Close\r\n\r\n"
             b"5\r\n12345\r\n4\r\n6789\r\n0\r\n\r\n")
 
         await tsk
@@ -1003,12 +999,12 @@ class HttpServerProtocolTestCase:
 
             assert count == 1
 
-        tsk = helper.loop.create_task(aiter_requests())
+        tsk = helper.create_task(aiter_requests())
 
         await asyncio.sleep(0)
         assert not tsk.done()
 
-        protocol.data_received(b"GET / HTTP/1.1\r\n\r\n")
+        protocol.data_received(b"GET / HTTP/1.1\r\nConnection: Close\r\n\r\n")
 
         await tsk
 
@@ -1051,12 +1047,12 @@ class HttpServerProtocolTestCase:
 
             assert count == 1
 
-        tsk = helper.loop.create_task(aiter_requests())
+        tsk = helper.create_task(aiter_requests())
 
         await asyncio.sleep(0)
         assert not tsk.done()
 
-        protocol.data_received(b"GET / HTTP/1.1\r\n\r\n")
+        protocol.data_received(b"GET / HTTP/1.1\r\nConnection: Close\r\n\r\n")
 
         await tsk
 
@@ -1083,15 +1079,14 @@ class HttpServerProtocolTestCase:
 
         protocol.connection_made(transport_mock)
         protocol.data_received(
-            b"GET / HTTP/1.1\r\nConnection: Keep-Alive\r\n\r\n"
-            b"GET / HTTP/1.1\r\nConnection: Keep-Alive\r\n\r\n")
+            b"GET / HTTP/1.1\r\n\r\n"
+            b"GET / HTTP/1.1\r\n\r\n")
 
         async def aiter_requests():
             count = 0
 
             async for reader in protocol:
                 assert reader.initial.uri == "/"
-                assert reader.initial.headers["connection"] == "Keep-Alive"
                 with pytest.raises(ReadFinishedError):
                     await reader.read()
 
@@ -1100,8 +1095,7 @@ class HttpServerProtocolTestCase:
                 helper.assert_initial_bytes(
                     transport_mock._pop_stored_data(),
                     b"HTTP/1.1 204 No Content",
-                    b"Server: %(self_ver_bytes)s",
-                    b"Connection: Keep-Alive")
+                    b"Server: %(self_ver_bytes)s")
 
                 writer.finish()
 
@@ -1111,7 +1105,7 @@ class HttpServerProtocolTestCase:
 
             assert count == 2
 
-        tsk = helper.loop.create_task(aiter_requests())
+        tsk = helper.create_task(aiter_requests())
 
         await asyncio.sleep(0)
         assert not tsk.done()
@@ -1207,7 +1201,7 @@ class HttpServerProtocolTestCase:
             with pytest.raises(ReadFinishedError):
                 await reader.read()
 
-            assert transport_mock._closing is True
+            transport_mock.close()
             protocol.connection_lost(None)
 
         assert count == 1
@@ -1269,7 +1263,7 @@ class HttpServerProtocolTestCase:
 
             protocol.close()
 
-            tsk = helper.loop.create_task(wait_closed())
+            tsk = helper.create_task(wait_closed())
             await asyncio.sleep(0)
 
             assert tsk.done() is False

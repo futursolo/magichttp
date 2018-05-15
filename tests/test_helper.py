@@ -25,15 +25,50 @@ class TestHelper:
 
         self.loop.set_debug(True)
 
+        self._tsks = set()
+
     def run_async_test(self, coro_fn):
         async def test_coro(_self, *args, **kwargs):
-            await asyncio.wait_for(
-                coro_fn(_self, *args, **kwargs), timeout=10)
+            exc = None
+
+            try:
+                await asyncio.wait_for(
+                    coro_fn(_self, *args, **kwargs), timeout=5)
+
+            except Exception as e:
+                exc = e
+
+            self._tsks, tsks = set(), self._tsks
+
+            for tsk in tsks:
+
+                try:
+                    if not tsk.done():
+                        tsk.cancel()
+
+                    await tsk
+
+                except asyncio.CancelledError:
+                    continue
+
+                except Exception as e:
+                    if not exc:
+                        exc = e
+
+            if exc:
+                raise RuntimeError from exc
 
         def wrapper(_self, *args, **kwargs):
             self.loop.run_until_complete(test_coro(_self, *args, **kwargs))
 
         return wrapper
+
+    def create_task(self, coro):
+        tsk = self.loop.create_task(coro)
+
+        self._tsks.add(tsk)
+
+        return tsk
 
     def get_version_str(self):
         return f"magichttp/{magichttp.__version__}"

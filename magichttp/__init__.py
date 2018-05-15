@@ -15,7 +15,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from . import h1impls as _h1impls  # Resolve Import Conflicts.  # noqa: F401
+from . import h1impl as _h1impl  # Resolve Import Conflicts.  # noqa: F401
 
 from ._version import *  # noqa: F401, F403
 from .constants import *  # noqa: F401, F403

@@ -17,7 +17,7 @@
 
 from typing import AsyncIterator, Optional, Union, Mapping, Iterable, Tuple
 
-from . import h1impls
+from . import h1impl
 from . import readers
 from . import constants
 
@@ -189,7 +189,7 @@ class HttpServerProtocol(
             self, transport: asyncio.Transport) -> None:
         super().connection_made(transport)
 
-        self.__delegate = h1impls.H1ServerImpl(
+        self.__delegate = h1impl.H1ServerImpl(
             self, self._MAX_INITIAL_SIZE)
 
     def __aiter__(self) -> AsyncIterator[readers.HttpRequestReader]:
@@ -253,7 +253,7 @@ class HttpClientProtocol(BaseHttpProtocol):
             self, transport: asyncio.Transport) -> None:
         super().connection_made(transport)
 
-        self.__delegate = h1impls.H1ClientImpl(
+        self.__delegate = h1impl.H1ClientImpl(
             self, self._MAX_INITIAL_SIZE, self._http_version)
 
     async def write_request(
