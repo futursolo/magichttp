@@ -18,7 +18,7 @@ implementation.
 Install
 -------
 
-.. code-block: shell
+.. code-block:: shell
 
   $ pip install magichttp -U
 
