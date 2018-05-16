@@ -1108,7 +1108,58 @@ class HttpServerProtocolTestCase:
         tsk = helper.create_task(aiter_requests())
 
         await asyncio.sleep(0)
-        assert not tsk.done()
+        if tsk.done():
+            raise RuntimeError(tsk.result())
+
+        assert protocol.eof_received() is True
+
+        await tsk
+
+        transport_mock._closing = True
+        protocol.connection_lost(None)
+
+        with pytest.raises(StopAsyncIteration):
+            await protocol.__aiter__().__anext__()
+
+    @helper.run_async_test
+    async def test_keep_alive_10(self):
+        protocol = HttpServerProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+        protocol.data_received(
+            b"GET / HTTP/1.0\r\nConnection: Keep-Alive\r\n\r\n"
+            b"GET / HTTP/1.0\r\nConnection: Keep-Alive\r\n\r\n")
+
+        async def aiter_requests():
+            count = 0
+
+            async for reader in protocol:
+                assert reader.initial.uri == "/"
+                with pytest.raises(ReadFinishedError):
+                    await reader.read()
+
+                writer = reader.write_response(HttpStatusCode.NO_CONTENT)
+
+                helper.assert_initial_bytes(
+                    transport_mock._pop_stored_data(),
+                    b"HTTP/1.0 204 No Content",
+                    b"Connection: Keep-Alive",
+                    b"Server: %(self_ver_bytes)s")
+
+                writer.finish()
+
+                assert b"".join(transport_mock._data_chunks) == b""
+
+                count += 1
+
+            assert count == 2
+
+        tsk = helper.create_task(aiter_requests())
+
+        await asyncio.sleep(0)
+        if tsk.done():
+            raise RuntimeError(tsk.result())
 
         assert protocol.eof_received() is True
 
