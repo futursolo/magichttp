@@ -15,32 +15,35 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from typing import Optional, Union, Mapping, Iterable, Tuple, Generic, TypeVar
+from typing import Generic, TypeVar, Optional, Union, Mapping, Iterable, Tuple
 
-from . import protocols
-from . import readers
-from . import writers
-from . import h1composers
-from . import h1parsers
+from . import parsers
+from . import composers
 
-import typing
+from .. import readers
+from .. import writers
+from .. import constants
+
 import asyncio
+import typing
 import abc
 import contextlib
 
-if typing.TYPE_CHECKING:  # pragma: no cover
-    from . import constants  # noqa: F401
+if typing.TYPE_CHECKING:
+    from . import impls  # noqa: F401
+
+_T = TypeVar("_T")
 
 _HeaderType = Union[
     Mapping[str, str],
     Iterable[Tuple[str, str]]]
 
-_T = TypeVar("_T")
-
 _LAST_CHUNK = -1
 
 
 class _ReaderFuture(asyncio.Future, Generic[_T]):
+    __slots__ = ()
+
     def set_exception(  # type: ignore
             self, __exc: readers.BaseReadException) -> None:
         super().set_exception(__exc)
@@ -58,11 +61,11 @@ class _ReaderFuture(asyncio.Future, Generic[_T]):
         return await asyncio.shield(self)
 
 
-class _BaseH1StreamManager(
+class BaseH1StreamManager(
     readers.BaseHttpStreamReaderDelegate,
         writers.BaseHttpStreamWriterDelegate):
     def __init__(
-        self, __impl: "BaseH1Impl", buf: bytearray,
+        self, __impl: "impls.BaseH1Impl", buf: bytearray,
             max_initial_size: int) -> None:
         self._impl = __impl
         self._buf = buf
@@ -74,6 +77,7 @@ class _BaseH1StreamManager(
         self._body_len: Optional[int] = None
         self._current_chunk_len: Optional[int] = None
         self._current_chunk_crlf_dropped = True
+        self._read_exc: Optional[readers.BaseReadException] = None
 
         self._writer_ready = asyncio.Event()
         self._write_chunked_body: Optional[bool] = None
@@ -131,7 +135,7 @@ class _BaseH1StreamManager(
 
                         return
 
-                self._current_chunk_len = h1parsers.parse_chunk_length(
+                self._current_chunk_len = parsers.parse_chunk_length(
                     self._buf)
 
                 if self._current_chunk_len is None:
@@ -165,13 +169,13 @@ class _BaseH1StreamManager(
         assert self._body_len is not None
         reader = self._reader_fur.result()
 
-        if self._body_len == h1parsers.BODY_IS_ENDLESS:
+        if self._body_len == parsers.BODY_IS_ENDLESS:
             reader._append_data(self._buf)
             self._buf.clear()
 
             return
 
-        if self._body_len == h1parsers.BODY_IS_CHUNKED:
+        if self._body_len == parsers.BODY_IS_CHUNKED:
             self._try_parse_chunked_body()
 
             return
@@ -200,7 +204,7 @@ class _BaseH1StreamManager(
                     self._reader_fur.exception() is None:
                 self._try_parse_body()
 
-        except h1parsers.UnparsableHttpMessage as e:
+        except parsers.UnparsableHttpMessage as e:
             exc = readers.ReceivedDataMalformedError()
             exc.__cause__ = e
 
@@ -210,7 +214,7 @@ class _BaseH1StreamManager(
         if self._read_finished():
             return
 
-        if self._body_len == h1parsers.BODY_IS_ENDLESS:
+        if self._body_len == parsers.BODY_IS_ENDLESS:
             reader = self._reader_fur.result()
             reader._append_end(None)
 
@@ -262,7 +266,7 @@ class _BaseH1StreamManager(
                 "Please write the initial before writing its body.")
 
         if self._write_chunked_body:
-            data = h1composers.compose_chunked_body(data, finished=finished)
+            data = composers.compose_chunked_body(data, finished=finished)
 
         try:
             self._transport.write(data)
@@ -302,6 +306,8 @@ class _BaseH1StreamManager(
     def _set_read_exception(self, exc: readers.BaseReadException) -> None:
         if self._read_finished():
             return
+
+        self._read_exc = exc
 
         if not self._reader_fur.done():
             self._reader_fur.set_exception(exc)
@@ -356,11 +362,11 @@ class _BaseH1StreamManager(
             writers.WriteAbortedError("Connnection closed."))
 
 
-class _H1ClientStreamManager(
-    _BaseH1StreamManager, writers.HttpRequestWriterDelegate,
+class H1ClientStreamManager(
+    BaseH1StreamManager, writers.HttpRequestWriterDelegate,
         readers.HttpResponseReaderDelegate):
     def __init__(
-        self, __impl: "H1ClientImpl", buf: bytearray,
+        self, __impl: "impls.H1ClientImpl", buf: bytearray,
         max_initial_size: int,
             http_version: "constants.HttpVersion") -> None:
         self._http_version = http_version
@@ -385,7 +391,7 @@ class _H1ClientStreamManager(
         if self._writer is None:
             return
 
-        initial = h1parsers.parse_response_initial(
+        initial = parsers.parse_response_initial(
             self._buf, self._writer.initial)
 
         if initial is None:
@@ -397,7 +403,7 @@ class _H1ClientStreamManager(
 
             return
 
-        self._body_len = h1parsers.discover_response_body_length(
+        self._body_len = parsers.discover_response_body_length(
             initial, req_initial=self._writer.initial)
 
         reader = readers.HttpResponseReader(
@@ -416,7 +422,7 @@ class _H1ClientStreamManager(
             raise self._write_exc
 
         initial, initial_bytes = \
-            h1composers.compose_request_initial(
+            composers.compose_request_initial(
                 method=method, uri=uri, authority=authority,
                 version=self._http_version,
                 scheme=scheme, headers=headers)
@@ -426,7 +432,7 @@ class _H1ClientStreamManager(
                 self._write_chunked_body = False
 
             else:
-                self._write_chunked_body = h1parsers.is_chunked_body(
+                self._write_chunked_body = parsers.is_chunked_body(
                     initial.headers["transfer-encoding"])
 
             self._transport.write(initial_bytes)
@@ -457,16 +463,19 @@ class _H1ClientStreamManager(
 
         if self._last_stream is None:
             if self._reader_fur.exception() is not None or \
-                    self._writer is None:
+                    self._read_exc is not None:
                 self._last_stream = True
 
-            elif self._write_exc is not None:
+            elif self._writer is None or self._write_exc is not None:
                 self._last_stream = True
 
             else:
                 reader = self._reader_fur.result()
 
                 if reader.initial.status_code >= 400:
+                    self._last_stream = True
+
+                elif self._body_len == parsers.BODY_IS_ENDLESS:
                     self._last_stream = True
 
                 else:
@@ -476,21 +485,30 @@ class _H1ClientStreamManager(
                     local_conn_header = self._writer.initial.headers.get(
                         "connection", "").lower()
 
-                    if remote_conn_header == local_conn_header == \
-                            "keep-alive":
-                        self._last_stream = False
+                    if reader.initial.version == constants.HttpVersion.V1_1:
+                        if "close" not in (
+                                remote_conn_header, local_conn_header):
+                            self._last_stream = False
+
+                        else:
+                            self._last_stream = True
 
                     else:
-                        self._last_stream = True
+                        if "keep-alive" not in (
+                                remote_conn_header, local_conn_header):
+                            self._last_stream = False
+
+                        else:
+                            self._last_stream = True
 
         return self._last_stream
 
 
-class _H1ServerStreamManager(
-    _BaseH1StreamManager, readers.HttpRequestReaderDelegate,
+class H1ServerStreamManager(
+    BaseH1StreamManager, readers.HttpRequestReaderDelegate,
         writers.HttpResponseWriterDelegate):
     def __init__(
-        self, __impl: "H1ServerImpl", buf: bytearray,
+        self, __impl: "impls.H1ServerImpl", buf: bytearray,
             max_initial_size: int) -> None:
         self.__reader_fur: _ReaderFuture[readers.HttpRequestReader] = \
             _ReaderFuture()
@@ -511,7 +529,7 @@ class _H1ServerStreamManager(
         return self.__writer
 
     def _try_parse_initial(self) -> None:
-        initial = h1parsers.parse_request_initial(self._buf)
+        initial = parsers.parse_request_initial(self._buf)
 
         if initial is None:
             if len(self._buf) > self._max_initial_size:
@@ -521,7 +539,7 @@ class _H1ServerStreamManager(
 
             return
 
-        self._body_len = h1parsers.discover_request_body_length(initial)
+        self._body_len = parsers.discover_request_body_length(initial)
 
         reader = readers.HttpRequestReader(self, initial=initial)
         self._reader_fur.set_result(reader)
@@ -553,7 +571,7 @@ class _H1ServerStreamManager(
             maybe_reader.initial if maybe_reader is not None else None
 
         initial, initial_bytes = \
-            h1composers.compose_response_initial(
+            composers.compose_response_initial(
                 status_code=status_code, headers=headers,
                 req_initial=maybe_req_initial)
 
@@ -562,7 +580,7 @@ class _H1ServerStreamManager(
                 self._write_chunked_body = False
 
             else:
-                self._write_chunked_body = h1parsers.is_chunked_body(
+                self._write_chunked_body = parsers.is_chunked_body(
                     initial.headers["transfer-encoding"])
 
             self._transport.write(initial_bytes)
@@ -588,10 +606,10 @@ class _H1ServerStreamManager(
 
         if self._last_stream is None:
             if self._reader_fur.exception() is not None or \
-                    self._writer is None:
+                    self._read_exc is not None:
                 self._last_stream = True
 
-            elif self._write_exc is not None:
+            elif self._writer is None or self._write_exc is not None:
                 self._last_stream = True
 
             elif self._writer.initial.status_code >= 400:
@@ -606,201 +624,10 @@ class _H1ServerStreamManager(
                 local_conn_header = self._writer.initial.headers.get(
                     "connection", "").lower()
 
-                if remote_conn_header == local_conn_header == "keep-alive":
+                if "close" not in (remote_conn_header, local_conn_header):
                     self._last_stream = False
 
                 else:
                     self._last_stream = True
 
         return self._last_stream
-
-
-class BaseH1Impl(protocols.BaseHttpProtocolDelegate):
-    def __init__(
-            self, protocol: protocols.BaseHttpProtocol) -> None:
-        self._protocol = protocol
-        self._transport = protocol.transport
-
-        self._buf = bytearray()
-
-        self._reading_paused = False
-
-    def _pause_reading(self) -> None:
-        if self._reading_paused:
-            return
-
-        self._transport.pause_reading()
-
-        self._reading_paused = True
-
-    def _resume_reading(self) -> None:
-        if not self._reading_paused:
-            return
-
-        self._transport.resume_reading()
-
-        self._reading_paused = False
-
-    @property
-    @abc.abstractmethod
-    def _stream(self) -> _BaseH1StreamManager:  # pragma: no cover
-        raise NotImplementedError
-
-    def data_received(self, data: bytes) -> None:
-        self._buf += data
-
-        self._stream._data_appended()
-
-    def eof_received(self) -> None:
-        if not self._stream._finished():
-            self._stream._eof_received()
-
-        else:
-            self._transport.close()
-
-    def close(self) -> None:
-        if not self._stream._finished():
-            self._stream._mark_as_last_stream()
-
-        else:
-            self._transport.close()
-
-    @abc.abstractmethod
-    def _set_abort_error(
-        self,
-            __cause: Optional[BaseException]) -> None:  # pragma: no cover
-        raise NotImplementedError
-
-    def abort(self) -> None:
-        self._set_abort_error(None)
-
-        self._transport.close()
-
-    def connection_lost(self, exc: Optional[BaseException]) -> None:
-        if exc:
-            self._set_abort_error(exc)
-
-        else:
-            self._stream._connection_lost(None)
-
-
-class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
-    def __init__(
-        self, protocol: protocols.HttpServerProtocol,
-            max_initial_size: int) -> None:
-        super().__init__(protocol)
-
-        self._max_initial_size = max_initial_size
-
-        self._exc: Optional[readers.ReadAbortedError] = None
-
-        self.__stream = _H1ServerStreamManager(
-            self, self._buf, max_initial_size)
-
-        self._read_request_lock = asyncio.Lock()
-        self._request_read = False
-
-    @property
-    def _stream(self) -> _H1ServerStreamManager:
-        return self.__stream
-
-    async def read_request(self) -> readers.HttpRequestReader:
-        async with self._read_request_lock:
-            if self._request_read:
-                await self._stream._wait_finished()
-
-                if self._transport.is_closing():
-                    if self._exc:
-                        raise self._exc
-
-                    raise readers.ReadFinishedError
-
-                self._resume_reading()
-
-                self.__stream = _H1ServerStreamManager(
-                    self, self._buf, self._max_initial_size)
-                self._request_read = False
-
-            reader = await self._stream._read_request()
-            self._request_read = True
-
-            return reader
-
-    def _set_abort_error(self, __cause: Optional[BaseException]) -> None:
-        if self._exc is not None:
-            return
-
-        if __cause:
-            self._exc = readers.ReadAbortedError(
-                "Read aborted due to socket error.")
-            self._exc.__cause__ = __cause
-
-        else:
-            self._exc = readers.ReadAbortedError("Read aborted by user.")
-
-        self._stream._set_abort_error(__cause)
-
-
-class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
-    def __init__(
-        self, protocol: protocols.HttpClientProtocol, max_initial_size: int,
-            http_version: "constants.HttpVersion") -> None:
-        super().__init__(protocol)
-
-        self._http_version = http_version
-        self._max_initial_size = max_initial_size
-
-        self._exc: Optional[writers.WriteAbortedError] = None
-
-        self.__stream = _H1ClientStreamManager(
-            self, self._buf, max_initial_size, http_version)
-
-        self._write_request_lock = asyncio.Lock()
-        self._request_written = False
-
-    @property
-    def _stream(self) -> _H1ClientStreamManager:
-        return self.__stream
-
-    async def write_request(
-        self, method: "constants.HttpRequestMethod", *,
-        uri: str, authority: Optional[str],
-        scheme: Optional[str],
-            headers: Optional[_HeaderType]) -> writers.HttpRequestWriter:
-        async with self._write_request_lock:
-            if self._request_written:
-                await self._stream._wait_finished()
-
-                if self._transport.is_closing():
-                    if self._exc:
-                        raise self._exc
-
-                    raise writers.WriteAfterFinishedError
-
-                self.__stream = _H1ClientStreamManager(
-                    self, self._buf, self._max_initial_size,
-                    self._http_version)
-                self._request_written = False
-
-            writer = self._stream._write_request(
-                method, uri=uri, authority=authority, scheme=scheme,
-                headers=headers)
-            self._request_written = True
-
-            self._resume_reading()
-
-            return writer
-
-    def _set_abort_error(self, __cause: Optional[BaseException]) -> None:
-        if self._exc is not None:
-            return
-
-        if __cause:
-            self._exc = writers.WriteAbortedError(
-                "Write aborted due to socket error.")
-            self._exc.__cause__ = __cause
-
-        else:
-            self._exc = writers.WriteAbortedError("Write aborted by user.")
-
-        self._stream._set_abort_error(__cause)

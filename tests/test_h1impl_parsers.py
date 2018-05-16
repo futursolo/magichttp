@@ -15,7 +15,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from magichttp.h1parsers import UnparsableHttpMessage, \
+from magichttp.h1impl.parsers import UnparsableHttpMessage, \
      parse_request_initial, parse_response_initial, \
      discover_request_body_length, \
      BODY_IS_CHUNKED, discover_response_body_length, BODY_IS_ENDLESS, \
@@ -142,7 +142,8 @@ class H1DiscoverRequestBodyLengthTestCase:
             uri="/",
             scheme=None,
             headers=magicdict.FrozenTolerantMagicDict(
-                [("connection", "Upgrade"), ("content-length", "20")]),
+                [("connection", "Upgrade"), ("upgrade", "My-Super-Proto"),
+                 ("content-length", "20")]),
             authority=None)
 
         assert discover_request_body_length(req) == BODY_IS_ENDLESS

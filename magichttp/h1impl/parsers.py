@@ -17,8 +17,8 @@
 
 from typing import Optional, List, Tuple
 
-from . import initials
-from . import constants
+from .. import initials
+from .. import constants
 
 import magicdict
 
@@ -85,7 +85,7 @@ def _split_initial_lines(buf: bytearray) -> Optional[List[str]]:
     return initial_buf.decode("latin-1").split("\r\n")
 
 
-def parse_headers(header_lines: List[str]) -> \
+def _parse_headers(header_lines: List[str]) -> \
         magicdict.FrozenTolerantMagicDict[str, str]:
     headers: List[Tuple[str, str]] = []
 
@@ -111,7 +111,7 @@ def parse_request_initial(
     try:
         method_buf, path_buf, version_buf = initial_lines.pop(0).split(" ")
 
-        headers = parse_headers(initial_lines)
+        headers = _parse_headers(initial_lines)
 
         return initials.HttpRequestInitial(
             constants.HttpRequestMethod(method_buf.upper().strip()),
@@ -144,7 +144,7 @@ def parse_response_initial(
         return initials.HttpResponseInitial(
             constants.HttpStatusCode(int(status_code_buf, 10)),
             version=constants.HttpVersion(version_buf),
-            headers=parse_headers(initial_lines))
+            headers=_parse_headers(initial_lines))
 
     except InvalidHeader:
         raise
@@ -155,13 +155,12 @@ def parse_response_initial(
 
 
 def discover_request_body_length(initial: initials.HttpRequestInitial) -> int:
-    if "upgrade" in [s.strip() for s in initial.headers.get_first(
-            "connection", "").lower().split(",")]:
+    if "upgrade" in initial.headers.keys():
         return BODY_IS_ENDLESS
 
-    if "transfer-encoding" in initial.headers:
-        if is_chunked_body(initial.headers["transfer-encoding"]):
-            return BODY_IS_CHUNKED
+    if "transfer-encoding" in initial.headers and \
+            is_chunked_body(initial.headers["transfer-encoding"]):
+        return BODY_IS_CHUNKED
 
     if "content-length" in initial.headers:
         return _parse_content_length_header(initial.headers["content-length"])
@@ -172,12 +171,15 @@ def discover_request_body_length(initial: initials.HttpRequestInitial) -> int:
 def discover_response_body_length(
     initial: initials.HttpResponseInitial, *,
         req_initial: initials.HttpRequestInitial) -> int:
-    if initial.status_code == constants.HttpStatusCode.SWITCHING_PROTOCOLS:
+    if initial.status_code == constants.HttpStatusCode.SWITCHING_PROTOCOLS or \
+            req_initial.method == constants.HttpRequestMethod.CONNECT:
         return BODY_IS_ENDLESS
 
-    # HEAD Requests, and 204/304 Responses have no body.
+    # HEAD Requests and 204/304 Responses have no body.
     if req_initial.method == constants.HttpRequestMethod.HEAD or \
-            initial.status_code in (204, 304):
+            initial.status_code in (
+                constants.HttpStatusCode.NO_CONTENT,
+                constants.HttpStatusCode.NOT_MODIFIED):
         return 0
 
     if "transfer-encoding" in initial.headers:

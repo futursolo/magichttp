@@ -15,7 +15,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from magichttp.h1composers import compose_request_initial, \
+from magichttp.h1impl.composers import compose_request_initial, \
     compose_response_initial, compose_chunked_body
 from magichttp import HttpRequestMethod, HttpVersion, \
     HttpRequestInitial, HttpStatusCode
@@ -43,15 +43,13 @@ class ComposeRequestInitialTestCase:
         assert not hasattr(req, "scheme")
         assert req.headers == {
             "user-agent": helper.get_version_str(),
-            "accept": "*/*",
-            "connection": "Keep-Alive"}
+            "accept": "*/*"}
 
         helper.assert_initial_bytes(
             req_bytes,
             b"GET / HTTP/1.1",
             b"User-Agent: %(self_ver_bytes)s",
-            b"Accept: */*",
-            b"Connection: Keep-Alive")
+            b"Accept: */*")
 
     def test_http_10_request(self):
         req, req_bytes = compose_request_initial(
@@ -68,19 +66,17 @@ class ComposeRequestInitialTestCase:
         assert req.scheme == "http"
         assert req.headers == {
             "user-agent": helper.get_version_str(),
+            "connection": "Keep-Alive",
             "accept": "*/*",
-            "connection": "Close",
-            "host": "localhost",
-            "x-scheme": "http"}
+            "host": "localhost"}
 
         helper.assert_initial_bytes(
             req_bytes,
             b"GET / HTTP/1.0",
             b"User-Agent: %(self_ver_bytes)s",
             b"Accept: */*",
-            b"Connection: Close",
-            b"Host: localhost",
-            b"X-Scheme: http")
+            b"Connection: Keep-Alive",
+            b"Host: localhost")
 
 
 class ComposeResponseInitialTestCase:
@@ -99,14 +95,12 @@ class ComposeResponseInitialTestCase:
         assert res.status_code == 200
         assert res.headers == {
             "server": helper.get_version_str(),
-            "connection": "Close",
             "transfer-encoding": "Chunked"}
 
         helper.assert_initial_bytes(
             res_bytes,
             b"HTTP/1.1 200 OK",
             b"Server: %(self_ver_bytes)s",
-            b"Connection: Close",
             b"Transfer-Encoding: Chunked")
 
     def test_bad_request(self):
@@ -155,8 +149,7 @@ class ComposeResponseInitialTestCase:
             version=HttpVersion.V1_1,
             uri="/",
             scheme="http",
-            headers=magicdict.TolerantMagicDict(
-                [("connection", "Keep-Alive")]),
+            headers=magicdict.TolerantMagicDict(),
             authority=None)
 
         res, res_bytes = compose_response_initial(
@@ -165,15 +158,40 @@ class ComposeResponseInitialTestCase:
         assert res.status_code == 200
         assert res.headers == {
             "server": helper.get_version_str(),
-            "connection": "Keep-Alive",
             "transfer-encoding": "Chunked"}
 
         helper.assert_initial_bytes(
             res_bytes,
             b"HTTP/1.1 200 OK",
             b"Server: %(self_ver_bytes)s",
-            b"Connection: Keep-Alive",
             b"Transfer-Encoding: Chunked")
+
+    def test_http_10_keep_alive(self):
+        req = HttpRequestInitial(
+            HttpRequestMethod.GET,
+            version=HttpVersion.V1_0,
+            uri="/",
+            scheme="http",
+            headers=magicdict.TolerantMagicDict(
+                [("connection", "Keep-Alive")]),
+            authority=None)
+
+        res, res_bytes = compose_response_initial(
+            HttpStatusCode.OK, headers={"content-length": "0"},
+            req_initial=req)
+
+        assert res.status_code == 200
+        assert res.headers == {
+            "content-length": "0",
+            "server": helper.get_version_str(),
+            "connection": "Keep-Alive"}
+
+        helper.assert_initial_bytes(
+            res_bytes,
+            b"HTTP/1.0 200 OK",
+            b"Server: %(self_ver_bytes)s",
+            b"Connection: Keep-Alive",
+            b"Content-Length: 0")
 
     def test_no_keep_alive(self):
         req = HttpRequestInitial(
@@ -207,8 +225,7 @@ class ComposeResponseInitialTestCase:
             version=HttpVersion.V1_1,
             uri="/",
             scheme="http",
-            headers=magicdict.TolerantMagicDict(
-                [("connection", "Keep-Alive")]),
+            headers=magicdict.TolerantMagicDict(),
             authority=None)
 
         res, res_bytes = compose_response_initial(
@@ -216,14 +233,12 @@ class ComposeResponseInitialTestCase:
 
         assert res.status_code == 204
         assert res.headers == {
-            "server": helper.get_version_str(),
-            "connection": "Keep-Alive"}
+            "server": helper.get_version_str()}
 
         helper.assert_initial_bytes(
             res_bytes,
             b"HTTP/1.1 204 No Content",
-            b"Server: %(self_ver_bytes)s",
-            b"Connection: Keep-Alive")
+            b"Server: %(self_ver_bytes)s")
 
     def test_304_keep_alive(self):
         req = HttpRequestInitial(
@@ -231,8 +246,7 @@ class ComposeResponseInitialTestCase:
             version=HttpVersion.V1_1,
             uri="/",
             scheme="http",
-            headers=magicdict.TolerantMagicDict(
-                [("connection", "Keep-Alive")]),
+            headers=magicdict.TolerantMagicDict(),
             authority=None)
 
         res, res_bytes = compose_response_initial(
@@ -240,14 +254,12 @@ class ComposeResponseInitialTestCase:
 
         assert res.status_code == 304
         assert res.headers == {
-            "server": helper.get_version_str(),
-            "connection": "Keep-Alive"}
+            "server": helper.get_version_str()}
 
         helper.assert_initial_bytes(
             res_bytes,
             b"HTTP/1.1 304 Not Modified",
-            b"Server: %(self_ver_bytes)s",
-            b"Connection: Keep-Alive")
+            b"Server: %(self_ver_bytes)s")
 
     def test_head_keep_alive(self):
         req = HttpRequestInitial(
@@ -255,8 +267,7 @@ class ComposeResponseInitialTestCase:
             version=HttpVersion.V1_1,
             uri="/",
             scheme="http",
-            headers=magicdict.TolerantMagicDict(
-                [("connection", "Keep-Alive")]),
+            headers=magicdict.TolerantMagicDict(),
             authority=None)
 
         res, res_bytes = compose_response_initial(
@@ -264,14 +275,12 @@ class ComposeResponseInitialTestCase:
 
         assert res.status_code == 200
         assert res.headers == {
-            "server": helper.get_version_str(),
-            "connection": "Keep-Alive"}
+            "server": helper.get_version_str()}
 
         helper.assert_initial_bytes(
             res_bytes,
             b"HTTP/1.1 200 OK",
-            b"Server: %(self_ver_bytes)s",
-            b"Connection: Keep-Alive")
+            b"Server: %(self_ver_bytes)s")
 
 
 class ComposeChunkedBodyTestCase:
