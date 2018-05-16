@@ -15,6 +15,14 @@ Magichttp is an http stack for asyncio, which provides one the ability to create
 their own async http client/server without diving into the http protocol
 implementation.
 
+Install
+-------
+
+.. code-block: shell
+
+  $ pip install magichttp -U
+
+
 Usage
 -----
 See :code:`examples/echo_client.py` and :code:`examples/echo_server.py`.
