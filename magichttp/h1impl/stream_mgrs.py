@@ -41,21 +41,9 @@ _HeaderType = Union[
 _LAST_CHUNK = -1
 
 
-class _ReaderFuture(asyncio.Future, Generic[_T]):
-    __slots__ = ()
-
-    def set_exception(  # type: ignore
-            self, __exc: readers.BaseReadException) -> None:
-        super().set_exception(__exc)
-
-    def exception(self) -> Optional[readers.BaseReadException]:  # type: ignore
-        return super().exception()  # type: ignore
-
+class _ReaderFuture(asyncio.Future[_T], Generic[_T]):
     def cancel(self) -> bool:  # pragma: no cover
         raise NotImplementedError("You cannot cancel this future.")
-
-    def result(self) -> _T:
-        return super().result()  # type: ignore
 
     async def safe_await(self) -> _T:
         return await asyncio.shield(self)
@@ -254,7 +242,7 @@ class BaseH1StreamManager(
     def _mark_as_last_stream(self) -> None:
         self._last_stream = True
 
-    def write_data(self, data: bytes, finished: bool=False) -> None:
+    def write_data(self, data: bytes, finished: bool = False) -> None:
         if self._write_finished:
             if self._write_exc:
                 raise self._write_exc
@@ -557,7 +545,7 @@ class H1ServerStreamManager(
     def write_response(
         self, status_code: "constants.HttpStatusCode", *,
         headers: Optional[_HeaderType]
-            ) -> writers.HttpResponseWriter:
+    ) -> writers.HttpResponseWriter:
         if self._writer is not None:
             raise RuntimeError("You cannot write response twice.")
 

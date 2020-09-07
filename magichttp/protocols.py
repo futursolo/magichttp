@@ -70,7 +70,8 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
     The base protocol for :class:`HttpServerProtocol` and
     :class:`HttpClientProtocol`.
     """
-    __slots__ = ("_drained_event", "_open_after_eof", "_transport")
+    __slots__ = ("_drained_event", "_open_after_eof",
+                 "_transport", "_conn_lost")
 
     _MAX_INITIAL_SIZE = 64 * 1024  # 64K
 
@@ -235,7 +236,7 @@ class HttpClientProtocol(BaseHttpProtocol):
 
     def __init__(
         self, *, http_version:
-            constants.HttpVersion=constants.HttpVersion.V1_1) -> None:
+            constants.HttpVersion = constants.HttpVersion.V1_1) -> None:
         super().__init__()
 
         self._http_version = http_version
@@ -258,9 +259,9 @@ class HttpClientProtocol(BaseHttpProtocol):
 
     async def write_request(
         self, method: constants.HttpRequestMethod, *,
-        uri: str="/", authority: Optional[str]=None,
-        scheme: Optional[str]=None,
-        headers: Optional[_HeaderType]=None) -> \
+        uri: str = "/", authority: Optional[str] = None,
+        scheme: Optional[str] = None,
+        headers: Optional[_HeaderType] = None) -> \
             "writers.HttpRequestWriter":
         """
         Send next request to the server.

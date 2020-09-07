@@ -65,6 +65,7 @@ class RequestInitialTooLargeError(EntityTooLargeError):
     """
     The incoming request initial is too large.
     """
+
     def __init__(
             self, __delegate: "HttpRequestReaderDelegate", *args: Any) -> None:
         super().__init__(*args)
@@ -74,9 +75,9 @@ class RequestInitialTooLargeError(EntityTooLargeError):
     def write_response(
         self, status_code: Union[
             int, constants.HttpStatusCode
-        ]=constants.HttpStatusCode.REQUEST_HEADER_FIELDS_TOO_LARGE, *,
-        headers: Optional[_HeaderType]=None
-            ) -> "writers.HttpResponseWriter":
+        ] = constants.HttpStatusCode.REQUEST_HEADER_FIELDS_TOO_LARGE, *,
+        headers: Optional[_HeaderType] = None
+    ) -> "writers.HttpResponseWriter":
         """
         When this exception is raised on the server side, this method is used
         to send a error response instead of
@@ -136,6 +137,7 @@ class RequestInitialMalformedError(ReceivedDataMalformedError):
     """
     The request initial is malformed.
     """
+
     def __init__(
             self, __delegate: "HttpRequestReaderDelegate", *args: Any) -> None:
         super().__init__(*args)
@@ -145,9 +147,9 @@ class RequestInitialMalformedError(ReceivedDataMalformedError):
     def write_response(
         self, status_code: Union[
             int, constants.HttpStatusCode
-        ]=constants.HttpStatusCode.BAD_REQUEST, *,
-        headers: Optional[_HeaderType]=None
-            ) -> "writers.HttpResponseWriter":
+        ] = constants.HttpStatusCode.BAD_REQUEST, *,
+        headers: Optional[_HeaderType] = None
+    ) -> "writers.HttpResponseWriter":
         """
         When this exception is raised on the server side, this method is used
         to send a error response instead of
@@ -200,7 +202,7 @@ class BaseHttpStreamReader(abc.ABC):
         if not data:  # pragma: no cover
             return
 
-        self._buf += data  # type: ignore
+        self._buf += data
 
         if len(self) >= self.max_buf_len:
             self._delegate.pause_reading()
@@ -277,7 +279,7 @@ class BaseHttpStreamReader(abc.ABC):
     def __len__(self) -> int:
         return len(self._buf)
 
-    async def read(self, n: int=-1, exactly: bool=False) -> bytes:
+    async def read(self, n: int = -1, exactly: bool = False) -> bytes:
         """
         Read at most n bytes data or if exactly is `True`,
         read exactly n bytes data. If the end has been reached before
@@ -340,8 +342,8 @@ class BaseHttpStreamReader(abc.ABC):
             return data
 
     async def read_until(
-        self, separator: bytes=b"\n",
-            *, keep_separator: bool=True) -> bytes:
+        self, separator: bytes = b"\n",
+            *, keep_separator: bool = True) -> bytes:
         """
         Read until the separator has been found.
 
@@ -433,7 +435,7 @@ class HttpRequestReaderDelegate(
     def write_response(
         self, status_code: constants.HttpStatusCode, *,
         headers: Optional[_HeaderType]
-            ) -> "writers.HttpResponseWriter":
+    ) -> "writers.HttpResponseWriter":
         raise NotImplementedError
 
 
@@ -475,8 +477,8 @@ class HttpRequestReader(BaseHttpStreamReader):
 
     def write_response(
         self, status_code: Union[int, constants.HttpStatusCode], *,
-        headers: Optional[_HeaderType]=None
-            ) -> "writers.HttpResponseWriter":
+        headers: Optional[_HeaderType] = None
+    ) -> "writers.HttpResponseWriter":
         """
         Write a response to the client.
         """

@@ -47,7 +47,7 @@ def compose_request_initial(
     authority: Optional[str], version: constants.HttpVersion,
     scheme: Optional[str],
     headers: Optional[_HeaderType]
-        ) -> Tuple[initials.HttpRequestInitial, bytes]:
+) -> Tuple[initials.HttpRequestInitial, bytes]:
     refined_headers: MutableMapping[str, str] = magicdict.TolerantMagicDict(
         headers or {})
 
@@ -77,10 +77,10 @@ def compose_request_initial(
 
 
 def compose_response_initial(
-        status_code: constants.HttpStatusCode, *,
-        headers: Optional[_HeaderType],
-        req_initial: Optional[initials.HttpRequestInitial]
-            ) -> Tuple[initials.HttpResponseInitial, bytes]:
+    status_code: constants.HttpStatusCode, *,
+    headers: Optional[_HeaderType],
+    req_initial: Optional[initials.HttpRequestInitial]
+) -> Tuple[initials.HttpResponseInitial, bytes]:
     if req_initial is None:
         assert status_code >= 400, \
             ("req_initial is required for a status code less than 400.")
@@ -133,7 +133,7 @@ def compose_response_initial(
 
 
 def compose_chunked_body(
-        data: bytes, finished: bool=False) -> bytes:
+        data: bytes, finished: bool = False) -> bytes:
     if data:
         data_len = f"{len(data):x}".encode("utf-8")
 

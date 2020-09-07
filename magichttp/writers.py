@@ -59,7 +59,7 @@ class WriteAbortedError(BaseWriteException):
 
 class BaseHttpStreamWriterDelegate(abc.ABC):  # pragma: no cover
     @abc.abstractmethod
-    def write_data(self, data: bytes, finished: bool=False) -> None:
+    def write_data(self, data: bytes, finished: bool = False) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -134,7 +134,7 @@ class BaseHttpStreamWriter(abc.ABC):
 
                 raise
 
-    def finish(self, data: bytes=b"") -> None:
+    def finish(self, data: bytes = b"") -> None:
         """
         Finish the stream.
         """

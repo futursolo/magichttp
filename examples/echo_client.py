@@ -35,7 +35,7 @@ class _EchoClientProtocol(magichttp.HttpClientProtocol):
         if not self.conn_made_fur.done():
             self.conn_made_fur.set_result(None)
 
-    def connection_lost(self, exc: Optional[BaseException]=None) -> None:
+    def connection_lost(self, exc: Optional[BaseException] = None) -> None:
         super().connection_lost(exc)
 
         if not self.conn_made_fur.done():
@@ -68,7 +68,7 @@ async def get_page(url: str) -> Tuple[magichttp.HttpResponseInitial, bytes]:
     print(f"Request Sent: {writer.initial}")
 
     writer.finish()
-    print(f"Request Body: b''")
+    print("Request Body: b''")
 
     reader = await writer.read_response()
     print(f"Response Received: {reader.initial}")

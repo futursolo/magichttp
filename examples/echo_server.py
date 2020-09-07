@@ -39,7 +39,7 @@ class _EchoServerProtocol(magichttp.HttpServerProtocol):
         if not self.conn_made_fur.done():
             self.conn_made_fur.set_result(None)
 
-    def connection_lost(self, exc: Optional[BaseException]=None) -> None:
+    def connection_lost(self, exc: Optional[BaseException] = None) -> None:
         super().connection_lost(exc)
 
         if not self.conn_made_fur.done():
@@ -60,7 +60,7 @@ class EchoHttpServer:
 
         self._tsks: Set[asyncio.Task[None]] = set()
 
-    async def listen(self, port: int, *, host: str="localhost") -> None:
+    async def listen(self, port: int, *, host: str = "localhost") -> None:
         assert self._srv is None
 
         self._srv = await self._loop.create_server(
@@ -90,10 +90,10 @@ class EchoHttpServer:
         print(f"Response Sent: {writer.initial}")
 
         writer.write(b"Got it!")
-        print(f"Response Body: b'Got it!'")
+        print("Response Body: b'Got it!'")
 
         writer.finish()
-        print(f"Stream Finished.")
+        print("Stream Finished.")
 
     async def _read_requests(self, protocol: _EchoServerProtocol) -> None:
         await protocol.conn_made_fur
