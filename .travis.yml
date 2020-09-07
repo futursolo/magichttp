@@ -9,23 +9,14 @@ matrix:
       python: 3.6.0
 
     - os: linux
-      python: 3.6.1
-
-    - os: linux
-      python: 3.6.2
-
-    - os: linux
-      python: 3.6.3
-
-    - os: linux
-      python: 3.6.4
-
-    - os: linux
-      python: 3.6.5
-      env: DEPLOY_PYPI=1
-
-    - os: linux
       python: 3.6
+
+    - os: linux
+      python: 3.7
+
+    - os: linux
+      python: 3.8
+      env: DEPLOY_PYPI=1
 
     - os: linux
       python: nightly
@@ -40,7 +31,7 @@ install:
 
 # commands to run tests
 script:
-  - mypy --python-version 3.6 --strict --ignore-missing-imports --show-error-context --show-traceback -p magichttp
+  - mypy --python-version 3.8 --strict --show-traceback --ignore-missing-imports --show-error-context --implicit-reexport --pretty -p magichttp
   - flake8 .
   - coverage run --source=magichttp setup.py test
 
@@ -51,9 +42,9 @@ deploy:
   - provider: pypi
     distributions: sdist bdist_wheel
     server: https://test.pypi.org/legacy/
-    user: "futursolo"
+    user: "__token__"
     password:
-      secure: "MWIf1MnwH6JhUlWvKI7t16iGGUcMw/Ndp3v7KC511zKUeB91GqCMFVe68paVSjWTCVwkcodw03UmEkvFT2xhAv+aAs3NwV0Z57sQRczfeZHoajJrI5N5ujiy68ZBjVRcUt4RsEBsCQaLagPbog0DY4TWXOVpee7C7LwfGEfHYwNfNjFmZZeOU3Ok5K1dqqWPVvMTQ6fmJtHWM3Tn5NUIRai8MUKHf7PBxDgMqsBk8dLq7YAmDaBf+bSScOXfn/J2XiiYjW2adXC8UktdSu0qKSPtu1GbfIzFEED6Vu7Od4yi/4wNsDYBTJsdLXXGT2o5b7DI1JUN6FNzTarZgJkVGxtuFGL3Bemt0K2HwIaQEesQIMuEONT9crODnar4LAX0k4r5d9bJtnuFQmWGDzn6lYNpTz5DqHWwH0hNgeuLn6/LDty8CtcSn0JlXsrC7GU0EQSAes4KauB93xxIUYSGHeGJWD/PZj824bZzyY0/eYCb9wEMruNd7JzQKlySaT9KkEIkBs6KHL46ETma1eMVRRSmZRKNzNJZLanRG2f9ucU5UUDxP0nVEGNxFdaxVgilsMRw7aieI031da8XvIo6LbpII7L/BWz1QpGQep2WCCcJRaOA0FToNTQfVXCZOniO6HuJ6T47q4HjogkQe9yege2yLm/xzUf/NreJmM3m/Ak="
+      secure: "KuSTIWdXo8yTJbkF/32LG3acZEyrJ9emY+eccAsAVbS7J5F3Pi+VIc33BTROtcXcJbU2MHmAThxHhdE8sx1lNpwrxkam1UnY8VRPMFSLpu2H/pl/UHwqMgkaAV3swTTDt8hELTwbFq/Bwa1i5HTaNlgTH11Byr05E35xaTnWQO1G1FNYf21HZk/LphnyVW/WgUR9RtuxcS/DaOxcR5sFnd46tufxCeMbi47mMi3obYBmGdElMBFnraJlyagKH09wKKmPa95uxQt5iXbeqmPZClet5U6Dz9fMeKsz+TG3p4dJrXvji7nR4F8ietdMeM8QCkuNAKuikCWnOMxlH+tSvyr5bbQuVXgE1z/gqlWDYUW9A7N9o54iMcPlyTrrfehrr1hLw7QpoUlR1kQS9j7oHooxQcQ6dywnXKsBOtaXUMfi7lRh5fj5q7c/6nBaxadRHdX01DSLA5TvWmSI/mztSJjYXCWIs+fOL+PSFm7ewU4PAczyE8R6YqzgMnQdVrJNBRCu4tUdVrGJTI5z7wQxiUGihQqgsh8ED8ylXf12O1D1U6iePVrEGYg7UgQEW0wJKfR228gBriuRvkgZtvHRBzm+gP0Xqs2S94JNgRyK3ut7hNj3WyEqQOiA9Xp1F9voyYuxPqSfXcseHmLhj7iPtyPryoQit0/r4U8YH4+qJi0="
     skip_cleanup: true
     skip_upload_docs: true
     on:
@@ -63,9 +54,9 @@ deploy:
 
   - provider: pypi
     distributions: sdist bdist_wheel
-    user: "futursolo"
+    user: "__token__"
     password:
-      secure: "YmAC/CblpCnTUYXsuMKQ7LTvwf0CSOaM6kvrPmcF7EARWHEq2mRdDTaCedJ9RCpUMBJXlNAh/thUrAqcAO1Uywo9+sotSGQREGSPIOHkJpwybo5LqI3B+3qgyLR44R987Jnp+cUOr6SMnp/GAtMPbsQhYQKM9POd+VUOpRsj8EkqwnUYRbBO6s3yGBcOEn55aooKJt3LusKfrPF6o7hI5zAjRsT5/bxr6ln1d1J41ApAgyMNjsdU8mBc4+C6mcIs09Lg4FKOIWzG0rLwD+lefg0j9zeDvrHCJkLQDOa+uoV5+SvE/zw5Ods6YpSjw7XrtjwKjW6008Re59pFcGrLvie/8hZmDMmiTOj0qO2KJdYNdPgOd4WzPC8+0uXv38CkBA6h/CTnCARBJP9UoGMPS6z2RX7DKAnb8gNReQJNEr6wjwI05ftjQGLe/Fg3FpSHBBvAGFAyDArW8IUO8Yrb4DZsCYSkkWn8pk+0mJ/nw66oEyTV/d7P3F9uIgpKmyCjJPronlwRQyKfIKANAfKxaRGYJ5lNHPbtixzD90/SKFzTK7rLXc8yzFjQfpe6Rn7TIA1CxltDKuPCuv31vdMyV247EXrrymHito/nsmUyMKTKUyPMY+37H6fIVg46UyuUkwNlyhW9lQN21hXA/De1GK0fTyWPI246k5ig9iGHUOY="
+      secure: "YzOO8WRz3Q4UpgTIT2v1S8Om7KCFrFlLc/dHLNHrrsDI/zDTSdBApEU/9eOX9cQ2UqDqvgXZnglNcnOvUTAL3w8HRV6SJ0weSYEPm+11GtQeGAM3iUBX0xhVUm5eyfl2HV4zctYqmOm54+9onoLpwoa2AKlVz/pMmJkYzx+c6IVYPtrzzXL6zQTBHQQXgCHa7Evd44jfLXsT4v+J/l3IgjQIF9go28HGqyL7ghsd1Qu1+KAnDHu4tJenVUUhdQBdivGVuez1lTk9dbAhkhPPTGjKRWhTalOb3cD8EbSGFjhKVtKHGyoa4hThnQw2Fzaj5Jc5Ynph5KzOuqmogZ+J9WSYu5OxyGTLzuAj50BxlWHgU9GVxJcpjd8Ub7rmqKJl+3uvnyDYhxHy7FKw0clcy12LkqcQyyy5aFHApGSrxkPYlUUb4q/QCqCjeWwSQaIM+psNJIRrvnRMu39qMwp1lVgLrjyI+24oVQ3GCBMkp7hDzAXsUmVXm3hZX157o3QrUhlJx816B0Mw5vZqb63Vxoop66tMckWnl66Yje2KS4okts51BMN9xE9ucNU7RbDn7VXzgq2IKYyT0k3BrZz4oMa86kljUe62Zh7iFzEppXYR/YyqM89BH7VemkkqyqhNOA2VvuMvnIma6jbBcI2loveLjfBAuCY5csLqeY9A7Uc="
     skip_cleanup: true
     skip_upload_docs: true
     on:

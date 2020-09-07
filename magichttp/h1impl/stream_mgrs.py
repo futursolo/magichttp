@@ -41,12 +41,21 @@ _HeaderType = Union[
 _LAST_CHUNK = -1
 
 
-class _ReaderFuture(asyncio.Future[_T], Generic[_T]):
-    def cancel(self) -> bool:  # pragma: no cover
-        raise NotImplementedError("You cannot cancel this future.")
+if typing.TYPE_CHECKING:  # pragma: no cover
+    class _ReaderFuture(asyncio.Future[_T], Generic[_T]):
+        def cancel(self) -> bool:  # pragma: no cover
+            raise NotImplementedError("You cannot cancel this future.")
 
-    async def safe_await(self) -> _T:
-        return await asyncio.shield(self)
+        async def safe_await(self) -> _T:
+            return await asyncio.shield(self)
+
+else:
+    class _ReaderFuture(asyncio.Future, Generic[_T]):
+        def cancel(self) -> bool:  # pragma: no cover
+            raise NotImplementedError("You cannot cancel this future.")
+
+        async def safe_await(self) -> _T:
+            return await asyncio.shield(self)
 
 
 class BaseH1StreamManager(
