@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-#   Copyright 2018 Kaede Hoshikawa
+#   Copyright 2020 Kaede Hoshikawa
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -20,19 +20,7 @@ from setuptools import setup, find_packages
 import sys
 
 if not sys.version_info[:3] >= (3, 6, 0):
-    raise RuntimeError("Magicdict requires Python 3.6.0 or higher.")
-
-else:
-    try:
-        import _modify_version
-
-    except ImportError:
-        pass
-
-    else:
-        _modify_version.modify("magichttp")
-
-    import _load_version
+    raise RuntimeError("Magichttp requires Python 3.6.0 or higher.")
 
 
 setup_requires = [
@@ -48,14 +36,16 @@ tests_require = [
 if __name__ == "__main__":
     setup(
         name="magichttp",
-        version=_load_version.load("magichttp"),
+        use_scm_version={"local_scheme": lambda v: ""},
         author="Kaede Hoshikawa",
         author_email="futursolo@icloud.com",
+        python_requires=">=3.6.0",
         url="https://github.com/futursolo/magichttp",
         license="Apache License 2.0",
         description="An http stack for asyncio.",
         long_description=open("README.rst", "r").read(),
         packages=find_packages(),
+        package_data={"": ["*"]},
         include_package_data=True,
         setup_requires=setup_requires,
         install_requires=install_requires,

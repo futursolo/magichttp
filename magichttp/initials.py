@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-#   Copyright 2018 Kaede Hoshikawa
+#   Copyright 2020 Kaede Hoshikawa
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ class HttpRequestInitial:
         version: "constants.HttpVersion",
         scheme: Optional[str],
         headers: "magicdict.FrozenTolerantMagicDict[str, str]"
-            ) -> None:
+    ) -> None:
         self._method = method
         self._version = version
         self._uri = uri
@@ -118,7 +118,7 @@ class HttpResponseInitial:
         self, status_code: "constants.HttpStatusCode", *,
         version: "constants.HttpVersion",
         headers: "magicdict.FrozenTolerantMagicDict[str, str]"
-            ) -> None:
+    ) -> None:
         self._status_code = status_code
         self._version = version
 
