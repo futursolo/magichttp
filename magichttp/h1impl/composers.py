@@ -87,9 +87,17 @@ def compose_response_initial(
             ("req_initial is required for a status code less than 400.")
 
         version = constants.HttpVersion.V1_1
+        prefix = ""
 
     else:
         version = req_initial.version
+
+        if status_code < 400 and \
+           req_initial.headers.get("expect", "").lower() == "100-continue":
+            prefix = "HTTP/1.1 100 Continue\r\n\r\n"
+
+        else:
+            prefix = ""
 
     refined_headers: MutableMapping[str, str] = magicdict.TolerantMagicDict(
         headers or {})
@@ -121,13 +129,6 @@ def compose_response_initial(
 
         else:
             refined_headers["connection"] = "Close"
-
-    if status_code < 400 and \
-       req_initial.headers.get("expect", "").lower() == "100-continue":
-        prefix = "HTTP/1.1 100 Continue\r\n\r\n"
-
-    else:
-        prefix = ""
 
     refined_initial = initials.HttpResponseInitial(
         status_code, version=version,
