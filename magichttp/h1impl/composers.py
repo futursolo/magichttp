@@ -31,8 +31,9 @@ _HeaderType = Union[
 
 
 def _compose_initial_bytes(
-        *first_line_args: str, headers: Mapping[str, str]) -> bytes:
-    parts = [" ".join(first_line_args), "\r\n"]
+        *first_line_args: str, headers: Mapping[str, str],
+        _prefix: str = "") -> bytes:
+    parts = [_prefix, " ".join(first_line_args), "\r\n"]
 
     for key, value in headers.items():
         parts.append("%s: %s\r\n" % (key.title(), value))
@@ -121,6 +122,13 @@ def compose_response_initial(
         else:
             refined_headers["connection"] = "Close"
 
+    if status_code < 400 and \
+       req_initial.headers.get("expect", "").lower() == "100-continue":
+        prefix = "HTTP/1.1 100 Continue\r\n\r\n"
+
+    else:
+        prefix = ""
+
     refined_initial = initials.HttpResponseInitial(
         status_code, version=version,
         headers=magicdict.FrozenTolerantMagicDict(refined_headers))
@@ -129,7 +137,7 @@ def compose_response_initial(
             version.value,
             str(status_code.value),
             status_code.phrase,
-            headers=refined_initial.headers))
+            headers=refined_initial.headers, _prefix=prefix))
 
 
 def compose_chunked_body(

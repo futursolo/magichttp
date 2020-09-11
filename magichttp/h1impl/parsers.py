@@ -141,8 +141,14 @@ def parse_response_initial(
         version_buf, status_code_buf, *status_text = \
             initial_lines.pop(0).split(" ")
 
+        status_code = constants.HttpStatusCode(int(status_code_buf, 10))
+
+        if status_code == constants.HttpStatusCode.CONTINUE:
+            # Trim off 100 continue
+            return parse_response_initial(buf, req_initial)
+
         return initials.HttpResponseInitial(
-            constants.HttpStatusCode(int(status_code_buf, 10)),
+            status_code,
             version=constants.HttpVersion(version_buf),
             headers=_parse_headers(initial_lines))
 

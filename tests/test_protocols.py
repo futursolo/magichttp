@@ -836,6 +836,28 @@ class HttpClientProtocolTestCase:
         with pytest.raises(ReadAbortedError):
             await reader.read()
 
+    @helper.run_async_test
+    async def test_http11_100continue_response(self):
+        protocol = HttpClientProtocol()
+        transport_mock = TransportMock()
+
+        protocol.connection_made(transport_mock)
+        protocol.data_received(
+            b"HTTP/1.1 100 Continue\r\n\r\n"
+            b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n12345")
+
+        writer = await protocol.write_request(HttpRequestMethod.GET, uri="/")
+        writer.finish()
+
+        reader = await writer.read_response()
+        assert await reader.read() == b"12345"
+
+        assert reader.initial.status_code == 200
+        assert reader.initial.headers == {"content-length": "5"}
+
+        assert protocol.eof_received() is True
+        protocol.connection_lost(None)
+
 
 class HttpServerProtocolTestCase:
     def test_init(self):
@@ -1727,3 +1749,55 @@ class HttpServerProtocolTestCase:
 
             with pytest.raises(WriteAbortedError):
                 writer.finish()
+
+    @helper.run_async_test
+    async def test_http11_100continue_request(self):
+        protocol = HttpServerProtocol()
+        transport_mock = TransportMock()
+        protocol.connection_made(transport_mock)
+
+        async def aiter_requests():
+            count = 0
+            async for reader in protocol:
+                with pytest.raises(ReadFinishedError):
+                    await reader.read()
+
+                writer = reader.write_response(HttpStatusCode.OK)
+                writer.finish()
+
+                count += 1
+
+            assert count == 1
+
+        tsk = helper.create_task(aiter_requests())
+
+        await asyncio.sleep(0)
+        assert not tsk.done()
+
+        protocol.data_received(
+            b"GET / HTTP/1.1\r\nExpect: 100-continue\r\n"
+            b"Connection: Close\r\n\r\n")
+
+        await tsk
+
+        assert protocol.eof_received() is True
+
+        assert transport_mock._closing is True
+        protocol.connection_lost(None)
+
+        data = transport_mock._pop_stored_data()
+
+        data_continue, data = data.split(b"\r\n\r\n", 1)
+
+        helper.assert_initial_bytes(
+            data_continue,
+            b"HTTP/1.1 100 Continue")
+
+        helper.assert_initial_bytes(
+            data,
+            b"HTTP/1.1 200 OK",
+            b"Server: %(self_ver_bytes)s",
+            b"Connection: Close",
+            b"Transfer-Encoding: Chunked")
+
+        assert data.split(b"\r\n\r\n", 1)[1] == b"0\r\n\r\n"
