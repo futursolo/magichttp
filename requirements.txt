@@ -1,2 +1,2 @@
 magicdict>=1.0.3,<2
-importlib-metadata>=1.7.0
+importlib-metadata>=1.7.0;python_version<'3.8'
