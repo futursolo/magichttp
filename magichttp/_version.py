@@ -17,7 +17,7 @@
 
 import typing
 
-if typing.TYPE_CHECKING:
+if typing.TYPE_CHECKING:  # pragma: no cover
     import importlib.metadata as importlib_metadata
 
 else:
