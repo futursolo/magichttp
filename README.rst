@@ -1,7 +1,7 @@
 magichttp
 =========
-.. image:: https://travis-ci.org/futursolo/magichttp.svg?branch=master
-    :target: https://travis-ci.org/futursolo/magichttp
+.. image:: https://github.com/futursolo/magichttp/actions/workflows/everything.yml/badge.svg
+    :target: https://github.com/futursolo/magichttp/actions/workflows/everything.yml
 
 .. image:: https://coveralls.io/repos/github/futursolo/magichttp/badge.svg?branch=master
     :target: https://coveralls.io/github/futursolo/magichttp
