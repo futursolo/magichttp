@@ -32,26 +32,31 @@ import contextlib
 if typing.TYPE_CHECKING:  # pragma: no cover
     from . import impls  # noqa: F401
 
-_T = TypeVar("_T")
+_T = TypeVar("_T", covariant=True)
 
-_HeaderType = Union[
-    Mapping[str, str],
-    Iterable[Tuple[str, str]]]
+_HeaderType = Union[Mapping[str, str], Iterable[Tuple[str, str]]]
 
 _LAST_CHUNK = -1
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover
+
     class _ReaderFuture(asyncio.Future[_T], Generic[_T]):
-        def cancel(self) -> bool:  # pragma: no cover
+        def cancel(
+            self, msg: Optional[str] = None
+        ) -> bool:  # pragma: no cover
             raise NotImplementedError("You cannot cancel this future.")
 
         async def safe_await(self) -> _T:
             return await asyncio.shield(self)
 
+
 else:
+
     class _ReaderFuture(asyncio.Future, Generic[_T]):
-        def cancel(self) -> bool:  # pragma: no cover
+        def cancel(
+            self, msg: Optional[str] = None
+        ) -> bool:  # pragma: no cover
             raise NotImplementedError("You cannot cancel this future.")
 
         async def safe_await(self) -> _T:
@@ -59,11 +64,11 @@ else:
 
 
 class BaseH1StreamManager(
-    readers.BaseHttpStreamReaderDelegate,
-        writers.BaseHttpStreamWriterDelegate):
+    readers.BaseHttpStreamReaderDelegate, writers.BaseHttpStreamWriterDelegate
+):
     def __init__(
-        self, __impl: "impls.BaseH1Impl", buf: bytearray,
-            max_initial_size: int) -> None:
+        self, __impl: "impls.BaseH1Impl", buf: bytearray, max_initial_size: int
+    ) -> None:
         self._impl = __impl
         self._buf = buf
         self._protocol = self._impl._protocol
@@ -97,14 +102,16 @@ class BaseH1StreamManager(
 
     @property
     @abc.abstractmethod
-    def _reader_fur(self) -> _ReaderFuture[
-            readers.BaseHttpStreamReader]:  # pragma: no cover
+    def _reader_fur(
+        self,
+    ) -> _ReaderFuture[readers.BaseHttpStreamReader]:  # pragma: no cover
         raise NotImplementedError
 
     @property
     @abc.abstractmethod
-    def _writer(self) -> Optional[
-            writers.BaseHttpStreamWriter]:  # pragma: no cover
+    def _writer(
+        self,
+    ) -> Optional[writers.BaseHttpStreamWriter]:  # pragma: no cover
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -115,8 +122,10 @@ class BaseH1StreamManager(
         reader = self._reader_fur.result()
 
         while True:
-            if self._current_chunk_len is None or \
-                    self._current_chunk_len == _LAST_CHUNK:
+            if (
+                self._current_chunk_len is None
+                or self._current_chunk_len == _LAST_CHUNK
+            ):
                 if self._current_chunk_crlf_dropped is False:
                     if len(self._buf) < 2:
                         return
@@ -132,14 +141,16 @@ class BaseH1StreamManager(
 
                         return
 
-                self._current_chunk_len = parsers.parse_chunk_length(
-                    self._buf)
+                self._current_chunk_len = parsers.parse_chunk_length(self._buf)
 
                 if self._current_chunk_len is None:
                     if len(self._buf) > self._max_initial_size:
-                        self._set_read_exception(readers.EntityTooLargeError(
-                            "Chunk size cannot be found "
-                            "before the initial size has been reached,"))
+                        self._set_read_exception(
+                            readers.EntityTooLargeError(
+                                "Chunk size cannot be found "
+                                "before the initial size has been reached,"
+                            )
+                        )
 
                     return
 
@@ -150,8 +161,8 @@ class BaseH1StreamManager(
 
                     continue
 
-            data = self._buf[:self._current_chunk_len]
-            del self._buf[:self._current_chunk_len]
+            data = self._buf[: self._current_chunk_len]
+            del self._buf[: self._current_chunk_len]
 
             self._current_chunk_len -= len(data)
 
@@ -177,8 +188,8 @@ class BaseH1StreamManager(
 
             return
 
-        data = self._buf[:self._body_len]
-        del self._buf[:self._body_len]
+        data = self._buf[: self._body_len]
+        del self._buf[: self._body_len]
 
         self._body_len -= len(data)
 
@@ -197,8 +208,10 @@ class BaseH1StreamManager(
             if not self._reader_fur.done():
                 self._try_parse_initial()
 
-            if self._reader_fur.done() and \
-                    self._reader_fur.exception() is None:
+            if (
+                self._reader_fur.done()
+                and self._reader_fur.exception() is None
+            ):
                 self._try_parse_body()
 
         except parsers.UnparsableHttpMessage as e:
@@ -219,8 +232,9 @@ class BaseH1StreamManager(
 
             return
 
-        self._set_read_exception(readers.ReadAbortedError(
-            "Eof received before the end is found."))
+        self._set_read_exception(
+            readers.ReadAbortedError("Eof received before the end is found.")
+        )
 
     def _read_finished(self) -> bool:
         if not self._reader_fur.done():
@@ -260,7 +274,8 @@ class BaseH1StreamManager(
 
         if self._write_chunked_body is None:
             raise RuntimeError(
-                "Please write the initial before writing its body.")
+                "Please write the initial before writing its body."
+            )
 
         if self._write_chunked_body:
             data = composers.compose_chunked_body(data, finished=finished)
@@ -331,11 +346,13 @@ class BaseH1StreamManager(
 
         if __cause:
             read_exc = readers.ReadAbortedError(
-                "Read aborted due to socket error.")
+                "Read aborted due to socket error."
+            )
             read_exc.__cause__ = __cause
 
             write_exc = writers.WriteAbortedError(
-                "Write aborted due to socket error.")
+                "Write aborted due to socket error."
+            )
             write_exc.__cause__ = __cause
 
         else:
@@ -356,28 +373,34 @@ class BaseH1StreamManager(
 
         self._eof_received()
         self._set_write_exception(
-            writers.WriteAbortedError("Connnection closed."))
+            writers.WriteAbortedError("Connnection closed.")
+        )
 
 
 class H1ClientStreamManager(
-    BaseH1StreamManager, writers.HttpRequestWriterDelegate,
-        readers.HttpResponseReaderDelegate):
+    BaseH1StreamManager,
+    writers.HttpRequestWriterDelegate,
+    readers.HttpResponseReaderDelegate,
+):
     def __init__(
-        self, __impl: "impls.H1ClientImpl", buf: bytearray,
+        self,
+        __impl: "impls.H1ClientImpl",
+        buf: bytearray,
         max_initial_size: int,
-            http_version: "constants.HttpVersion") -> None:
+        http_version: "constants.HttpVersion",
+    ) -> None:
         self._http_version = http_version
 
-        self.__reader_fur: _ReaderFuture[readers.HttpResponseReader] = \
-            _ReaderFuture()
+        self.__reader_fur: _ReaderFuture[
+            readers.HttpResponseReader
+        ] = _ReaderFuture()
 
         self.__writer: Optional[writers.HttpRequestWriter] = None
 
         super().__init__(__impl, buf, max_initial_size)
 
     @property
-    def _reader_fur(  # type: ignore
-            self) -> _ReaderFuture[readers.HttpResponseReader]:
+    def _reader_fur(self) -> _ReaderFuture[readers.HttpResponseReader]:
         return self.__reader_fur
 
     @property
@@ -389,7 +412,8 @@ class H1ClientStreamManager(
             return
 
         initial = parsers.parse_response_initial(
-            self._buf, self._writer.initial)
+            self._buf, self._writer.initial
+        )
 
         if initial is None:
             if len(self._buf) > self._max_initial_size:
@@ -401,28 +425,37 @@ class H1ClientStreamManager(
             return
 
         self._body_len = parsers.discover_response_body_length(
-            initial, req_initial=self._writer.initial)
+            initial, req_initial=self._writer.initial
+        )
 
         reader = readers.HttpResponseReader(
-            self, initial=initial, writer=self._writer)
+            self, initial=initial, writer=self._writer
+        )
         self._reader_fur.set_result(reader)
 
     def _write_request(
-        self, method: "constants.HttpRequestMethod", *,
-        uri: str, authority: Optional[str],
+        self,
+        method: "constants.HttpRequestMethod",
+        *,
+        uri: str,
+        authority: Optional[str],
         scheme: Optional[str],
-            headers: Optional[_HeaderType]) -> writers.HttpRequestWriter:
+        headers: Optional[_HeaderType],
+    ) -> writers.HttpRequestWriter:
         if self._writer is not None:
             raise RuntimeError("You cannot write request twice.")
 
         if self._write_exc:
             raise self._write_exc
 
-        initial, initial_bytes = \
-            composers.compose_request_initial(
-                method=method, uri=uri, authority=authority,
-                version=self._http_version,
-                scheme=scheme, headers=headers)
+        initial, initial_bytes = composers.compose_request_initial(
+            method=method,
+            uri=uri,
+            authority=authority,
+            version=self._http_version,
+            scheme=scheme,
+            headers=headers,
+        )
 
         try:
             if "transfer-encoding" not in initial.headers.keys():
@@ -430,7 +463,8 @@ class H1ClientStreamManager(
 
             else:
                 self._write_chunked_body = parsers.is_chunked_body(
-                    initial.headers["transfer-encoding"])
+                    initial.headers["transfer-encoding"]
+                )
 
             self._transport.write(initial_bytes)
 
@@ -441,8 +475,7 @@ class H1ClientStreamManager(
 
             raise exc
 
-        writer = writers.HttpRequestWriter(
-            self, initial=initial)
+        writer = writers.HttpRequestWriter(self, initial=initial)
 
         self.__writer = writer
         self._writer_ready.set()
@@ -459,8 +492,10 @@ class H1ClientStreamManager(
             return None
 
         if self._last_stream is None:
-            if self._reader_fur.exception() is not None or \
-                    self._read_exc is not None:
+            if (
+                self._reader_fur.exception() is not None
+                or self._read_exc is not None
+            ):
                 self._last_stream = True
 
             elif self._writer is None or self._write_exc is not None:
@@ -477,14 +512,18 @@ class H1ClientStreamManager(
 
                 else:
                     remote_conn_header = reader.initial.headers.get(
-                        "connection", "").lower()
+                        "connection", ""
+                    ).lower()
 
                     local_conn_header = self._writer.initial.headers.get(
-                        "connection", "").lower()
+                        "connection", ""
+                    ).lower()
 
                     if reader.initial.version == constants.HttpVersion.V1_1:
                         if "close" not in (
-                                remote_conn_header, local_conn_header):
+                            remote_conn_header,
+                            local_conn_header,
+                        ):
                             self._last_stream = False
 
                         else:
@@ -492,7 +531,9 @@ class H1ClientStreamManager(
 
                     else:
                         if "keep-alive" not in (
-                                remote_conn_header, local_conn_header):
+                            remote_conn_header,
+                            local_conn_header,
+                        ):
                             self._last_stream = False
 
                         else:
@@ -502,13 +543,19 @@ class H1ClientStreamManager(
 
 
 class H1ServerStreamManager(
-    BaseH1StreamManager, readers.HttpRequestReaderDelegate,
-        writers.HttpResponseWriterDelegate):
+    BaseH1StreamManager,
+    readers.HttpRequestReaderDelegate,
+    writers.HttpResponseWriterDelegate,
+):
     def __init__(
-        self, __impl: "impls.H1ServerImpl", buf: bytearray,
-            max_initial_size: int) -> None:
-        self.__reader_fur: _ReaderFuture[readers.HttpRequestReader] = \
-            _ReaderFuture()
+        self,
+        __impl: "impls.H1ServerImpl",
+        buf: bytearray,
+        max_initial_size: int,
+    ) -> None:
+        self.__reader_fur: _ReaderFuture[
+            readers.HttpRequestReader
+        ] = _ReaderFuture()
 
         self.__writer: Optional[writers.HttpResponseWriter] = None
 
@@ -517,8 +564,7 @@ class H1ServerStreamManager(
         self._data_appended()
 
     @property
-    def _reader_fur(  # type: ignore
-            self) -> _ReaderFuture[readers.HttpRequestReader]:
+    def _reader_fur(self) -> _ReaderFuture[readers.HttpRequestReader]:
         return self.__reader_fur
 
     @property
@@ -552,8 +598,10 @@ class H1ServerStreamManager(
             raise readers.RequestInitialMalformedError(self) from e
 
     def write_response(
-        self, status_code: "constants.HttpStatusCode", *,
-        headers: Optional[_HeaderType]
+        self,
+        status_code: "constants.HttpStatusCode",
+        *,
+        headers: Optional[_HeaderType],
     ) -> writers.HttpResponseWriter:
         if self._writer is not None:
             raise RuntimeError("You cannot write response twice.")
@@ -561,16 +609,21 @@ class H1ServerStreamManager(
         if self._write_exc:
             raise self._write_exc
 
-        maybe_reader = self._reader_fur.result() \
-            if self._reader_fur.exception() is None else None
+        maybe_reader = (
+            self._reader_fur.result()
+            if self._reader_fur.exception() is None
+            else None
+        )
 
-        maybe_req_initial = \
+        maybe_req_initial = (
             maybe_reader.initial if maybe_reader is not None else None
+        )
 
-        initial, initial_bytes = \
-            composers.compose_response_initial(
-                status_code=status_code, headers=headers,
-                req_initial=maybe_req_initial)
+        initial, initial_bytes = composers.compose_response_initial(
+            status_code=status_code,
+            headers=headers,
+            req_initial=maybe_req_initial,
+        )
 
         try:
             if "transfer-encoding" not in initial.headers.keys():
@@ -578,7 +631,8 @@ class H1ServerStreamManager(
 
             else:
                 self._write_chunked_body = parsers.is_chunked_body(
-                    initial.headers["transfer-encoding"])
+                    initial.headers["transfer-encoding"]
+                )
 
             self._transport.write(initial_bytes)
 
@@ -590,7 +644,8 @@ class H1ServerStreamManager(
             raise exc
 
         writer = writers.HttpResponseWriter(
-            self, initial=initial, reader=maybe_reader)
+            self, initial=initial, reader=maybe_reader
+        )
 
         self.__writer = writer
         self._writer_ready.set()
@@ -602,8 +657,10 @@ class H1ServerStreamManager(
             return None
 
         if self._last_stream is None:
-            if self._reader_fur.exception() is not None or \
-                    self._read_exc is not None:
+            if (
+                self._reader_fur.exception() is not None
+                or self._read_exc is not None
+            ):
                 self._last_stream = True
 
             elif self._writer is None or self._write_exc is not None:
@@ -616,10 +673,12 @@ class H1ServerStreamManager(
                 reader = self._reader_fur.result()
 
                 remote_conn_header = reader.initial.headers.get(
-                    "connection", "").lower()
+                    "connection", ""
+                ).lower()
 
                 local_conn_header = self._writer.initial.headers.get(
-                    "connection", "").lower()
+                    "connection", ""
+                ).lower()
 
                 if "close" not in (remote_conn_header, local_conn_header):
                     self._last_stream = False
