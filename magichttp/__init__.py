@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-#   Copyright 2020 Kaede Hoshikawa
+#   Copyright 2021 Kaede Hoshikawa
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -31,5 +31,11 @@ from . import protocols
 from . import readers
 from . import writers
 
-__all__ = _version.__all__ + constants.__all__ + initials.__all__ + \
-    protocols.__all__ + readers.__all__ + writers.__all__
+__all__ = (
+    _version.__all__
+    + constants.__all__
+    + initials.__all__
+    + protocols.__all__
+    + readers.__all__
+    + writers.__all__
+)

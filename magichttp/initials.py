@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-#   Copyright 2020 Kaede Hoshikawa
+#   Copyright 2021 Kaede Hoshikawa
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -24,27 +24,34 @@ if typing.TYPE_CHECKING:  # pragma: no cover
 
     import magicdict  # noqa: F401
 
-__all__ = [
-    "HttpRequestInitial", "HttpResponseInitial"]
+__all__ = ["HttpRequestInitial", "HttpResponseInitial"]
 
-_HeaderType = Union[
-    Mapping[str, str],
-    Iterable[Tuple[str, str]]]
+_HeaderType = Union[Mapping[str, str], Iterable[Tuple[str, str]]]
 
 
 class HttpRequestInitial:
     """
     The reuqest initial.
     """
+
     __slots__ = (
-        "_method", "_version", "_uri", "_headers", "_authority", "_scheme")
+        "_method",
+        "_version",
+        "_uri",
+        "_headers",
+        "_authority",
+        "_scheme",
+    )
 
     def __init__(
-        self, method: "constants.HttpRequestMethod", *,
-        uri: str, authority: Optional[str],
+        self,
+        method: "constants.HttpRequestMethod",
+        *,
+        uri: str,
+        authority: Optional[str],
         version: "constants.HttpVersion",
         scheme: Optional[str],
-        headers: "magicdict.FrozenTolerantMagicDict[str, str]"
+        headers: "magicdict.FrozenTolerantMagicDict[str, str]",
     ) -> None:
         self._method = method
         self._version = version
@@ -89,7 +96,7 @@ class HttpRequestInitial:
         parts = [
             ("method", repr(self._method)),
             ("uri", repr(self._uri)),
-            ("version", repr(self._version))
+            ("version", repr(self._version)),
         ]
 
         if self._authority is not None:
@@ -112,12 +119,15 @@ class HttpResponseInitial:
     """
     The response initial.
     """
+
     __slots__ = ("_status_code", "_version", "_headers")
 
     def __init__(
-        self, status_code: "constants.HttpStatusCode", *,
+        self,
+        status_code: "constants.HttpStatusCode",
+        *,
         version: "constants.HttpVersion",
-        headers: "magicdict.FrozenTolerantMagicDict[str, str]"
+        headers: "magicdict.FrozenTolerantMagicDict[str, str]",
     ) -> None:
         self._status_code = status_code
         self._version = version
@@ -140,7 +150,7 @@ class HttpResponseInitial:
         parts = [
             ("status_code", repr(self._status_code)),
             ("version", repr(self._version)),
-            ("headers", repr(self._headers))
+            ("headers", repr(self._headers)),
         ]
 
         args_repr = ", ".join([f"{k}={v}" for k, v in parts])

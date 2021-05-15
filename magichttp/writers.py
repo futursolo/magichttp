@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-#   Copyright 2020 Kaede Hoshikawa
+#   Copyright 2021 Kaede Hoshikawa
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -28,16 +28,17 @@ if typing.TYPE_CHECKING:  # pragma: no cover
 __all__ = [
     "WriteAfterFinishedError",
     "WriteAbortedError",
-
     "BaseHttpStreamWriter",
     "HttpRequestWriter",
-    "HttpResponseWriter"]
+    "HttpResponseWriter",
+]
 
 
 class BaseWriteException(Exception):
     """
     The base class of all write exceptions.
     """
+
     pass
 
 
@@ -47,6 +48,7 @@ class WriteAfterFinishedError(EOFError, BaseWriteException):
     :method:`BaseHttpStreamWriter.finish()`is called after
     the stream is finished.
     """
+
     pass
 
 
@@ -54,6 +56,7 @@ class WriteAbortedError(BaseWriteException):
     """
     Raised when the stream is aborted before writing the end.
     """
+
     pass
 
 
@@ -76,6 +79,7 @@ class BaseHttpStreamWriter(abc.ABC):
     The base class of :class:`HttpRequestWriter`
     and :class:`HttpResponseWriter`.
     """
+
     __slots__ = ("_delegate", "_flush_lock", "_finished", "_exc")
 
     def __init__(self, __delegate: BaseHttpStreamWriterDelegate) -> None:
@@ -180,7 +184,8 @@ class BaseHttpStreamWriter(abc.ABC):
 
 
 class HttpRequestWriterDelegate(
-        BaseHttpStreamWriterDelegate):  # pragma: no cover
+    BaseHttpStreamWriterDelegate
+):  # pragma: no cover
     @abc.abstractmethod
     async def read_response(self) -> "readers.HttpResponseReader":
         raise NotImplementedError
@@ -190,11 +195,15 @@ class HttpRequestWriter(BaseHttpStreamWriter):
     """
     The Writer for writing http requests.
     """
+
     __slots__ = ("__delegate", "_initial", "_reader")
 
     def __init__(
-        self, __delegate: HttpRequestWriterDelegate, *,
-            initial: "initials.HttpRequestInitial") -> None:
+        self,
+        __delegate: HttpRequestWriterDelegate,
+        *,
+        initial: "initials.HttpRequestInitial",
+    ) -> None:
         super().__init__(__delegate)
         self.__delegate = __delegate
 
@@ -239,12 +248,16 @@ class HttpResponseWriter(BaseHttpStreamWriter):
     """
     The Writer for writing http responses.
     """
+
     __slots__ = ("_initial", "_reader")
 
     def __init__(
-        self, __delegate: HttpResponseWriterDelegate, *,
-            initial: "initials.HttpResponseInitial",
-            reader: Optional["readers.HttpRequestReader"]) -> None:
+        self,
+        __delegate: HttpResponseWriterDelegate,
+        *,
+        initial: "initials.HttpResponseInitial",
+        reader: Optional["readers.HttpRequestReader"],
+    ) -> None:
         super().__init__(__delegate)
 
         self._initial = initial
@@ -269,6 +282,7 @@ class HttpResponseWriter(BaseHttpStreamWriter):
         if self._reader is None:
             raise AttributeError(
                 "HttpRequestReader is unavailable due to an "
-                "Error during reading.")
+                "Error during reading."
+            )
 
         return self._reader

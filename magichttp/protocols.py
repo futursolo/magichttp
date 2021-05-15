@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-#   Copyright 2020 Kaede Hoshikawa
+#   Copyright 2021 Kaede Hoshikawa
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -28,20 +28,16 @@ import typing
 if typing.TYPE_CHECKING:  # pragma: no cover
     from . import writers  # noqa: F401
 
-__all__ = [
-    "BaseHttpProtocol",
-    "HttpServerProtocol",
-    "HttpClientProtocol"]
+__all__ = ["BaseHttpProtocol", "HttpServerProtocol", "HttpClientProtocol"]
 
-_HeaderType = Union[
-    Mapping[str, str],
-    Iterable[Tuple[str, str]]]
+_HeaderType = Union[Mapping[str, str], Iterable[Tuple[str, str]]]
 
 
 class BaseHttpProtocolDelegate(abc.ABC):  # pragma: nocover
     @abc.abstractmethod
     def __init__(
-            self, protocol: "BaseHttpProtocol", max_initial_size: int) -> None:
+        self, protocol: "BaseHttpProtocol", max_initial_size: int
+    ) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -70,8 +66,13 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
     The base protocol for :class:`HttpServerProtocol` and
     :class:`HttpClientProtocol`.
     """
-    __slots__ = ("_drained_event", "_open_after_eof",
-                 "_transport", "_conn_lost")
+
+    __slots__ = (
+        "_drained_event",
+        "_open_after_eof",
+        "_transport",
+        "_conn_lost",
+    )
 
     _MAX_INITIAL_SIZE = 64 * 1024  # 64K
 
@@ -88,7 +89,8 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
         self._conn_lost = asyncio.Event()
 
     def connection_made(  # type: ignore
-            self, transport: asyncio.Transport) -> None:
+        self, transport: asyncio.Transport
+    ) -> None:
         self._open_after_eof = transport.get_extra_info("sslcontext") is None
 
         self._transport = transport
@@ -158,8 +160,8 @@ class BaseHttpProtocol(asyncio.Protocol, abc.ABC):
 class HttpServerProtocolDelegate(BaseHttpProtocolDelegate):  # pragma: no cover
     @abc.abstractmethod
     def __init__(
-        self, protocol: "HttpServerProtocol",
-            max_initial_size: int) -> None:
+        self, protocol: "HttpServerProtocol", max_initial_size: int
+    ) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -168,10 +170,12 @@ class HttpServerProtocolDelegate(BaseHttpProtocolDelegate):  # pragma: no cover
 
 
 class HttpServerProtocol(
-        BaseHttpProtocol, AsyncIterator[readers.HttpRequestReader]):
+    BaseHttpProtocol, AsyncIterator[readers.HttpRequestReader]
+):
     """
     The http server protocol.
     """
+
     __slots__ = ("__delegate",)
 
     def __init__(self) -> None:
@@ -187,11 +191,11 @@ class HttpServerProtocol(
         return self.__delegate
 
     def connection_made(  # type: ignore
-            self, transport: asyncio.Transport) -> None:
+        self, transport: asyncio.Transport
+    ) -> None:
         super().connection_made(transport)
 
-        self.__delegate = h1impl.H1ServerImpl(
-            self, self._MAX_INITIAL_SIZE)
+        self.__delegate = h1impl.H1ServerImpl(self, self._MAX_INITIAL_SIZE)
 
     def __aiter__(self) -> AsyncIterator[readers.HttpRequestReader]:
         return self
@@ -215,16 +219,23 @@ class HttpServerProtocol(
 class HttpClientProtocolDelegate(BaseHttpProtocolDelegate):  # pragma: no cover
     @abc.abstractmethod
     def __init__(
-        self, protocol: "HttpClientProtocol", max_initial_size: int,
-            http_version: constants.HttpVersion) -> None:
+        self,
+        protocol: "HttpClientProtocol",
+        max_initial_size: int,
+        http_version: constants.HttpVersion,
+    ) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
     async def write_request(
-        self, method: constants.HttpRequestMethod, *,
-        uri: str, authority: Optional[str],
+        self,
+        method: constants.HttpRequestMethod,
+        *,
+        uri: str,
+        authority: Optional[str],
         scheme: Optional[str],
-            headers: Optional[_HeaderType]) -> "writers.HttpRequestWriter":
+        headers: Optional[_HeaderType],
+    ) -> "writers.HttpRequestWriter":
         raise NotImplementedError
 
 
@@ -232,11 +243,14 @@ class HttpClientProtocol(BaseHttpProtocol):
     """
     The http client protocol.
     """
+
     __slots__ = ("__delegate", "_http_version")
 
     def __init__(
-        self, *, http_version:
-            constants.HttpVersion = constants.HttpVersion.V1_1) -> None:
+        self,
+        *,
+        http_version: constants.HttpVersion = constants.HttpVersion.V1_1,
+    ) -> None:
         super().__init__()
 
         self._http_version = http_version
@@ -251,21 +265,30 @@ class HttpClientProtocol(BaseHttpProtocol):
         return self.__delegate
 
     def connection_made(  # type: ignore
-            self, transport: asyncio.Transport) -> None:
+        self, transport: asyncio.Transport
+    ) -> None:
         super().connection_made(transport)
 
         self.__delegate = h1impl.H1ClientImpl(
-            self, self._MAX_INITIAL_SIZE, self._http_version)
+            self, self._MAX_INITIAL_SIZE, self._http_version
+        )
 
     async def write_request(
-        self, method: constants.HttpRequestMethod, *,
-        uri: str = "/", authority: Optional[str] = None,
+        self,
+        method: constants.HttpRequestMethod,
+        *,
+        uri: str = "/",
+        authority: Optional[str] = None,
         scheme: Optional[str] = None,
-        headers: Optional[_HeaderType] = None) -> \
-            "writers.HttpRequestWriter":
+        headers: Optional[_HeaderType] = None,
+    ) -> "writers.HttpRequestWriter":
         """
         Send next request to the server.
         """
         return await self._delegate.write_request(
-            method, uri=uri, authority=authority,
-            scheme=scheme, headers=headers)
+            method,
+            uri=uri,
+            authority=authority,
+            scheme=scheme,
+            headers=headers,
+        )
