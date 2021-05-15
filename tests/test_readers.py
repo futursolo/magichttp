@@ -15,24 +15,32 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from magichttp.readers import HttpRequestReaderDelegate, \
-    HttpResponseReaderDelegate
-from magichttp import HttpRequestReader, HttpResponseReader, \
-    ReadFinishedError, ReadUnsatisfiableError, MaxBufferLengthReachedError, \
-    SeparatorNotFoundError, ReadAbortedError
-
-from test_helper import TestHelper
-
-import pytest
 import asyncio
 import os
 
+from test_helper import TestHelper
+import pytest
+
+from magichttp import (
+    HttpRequestReader,
+    HttpResponseReader,
+    MaxBufferLengthReachedError,
+    ReadAbortedError,
+    ReadFinishedError,
+    ReadUnsatisfiableError,
+    SeparatorNotFoundError,
+)
+from magichttp.readers import (
+    HttpRequestReaderDelegate,
+    HttpResponseReaderDelegate,
+)
 
 helper = TestHelper()
 
 
 class ReaderDelegateMock(
-        HttpRequestReaderDelegate, HttpResponseReaderDelegate):
+    HttpRequestReaderDelegate, HttpResponseReaderDelegate
+):
     def __init__(self):
         self.paused = False
         self.aborted = False
@@ -325,14 +333,14 @@ class HttpRequestReaderTestCase:
 
 class HttpResponseReaderTestCase:
     def test_init(self):
-        HttpResponseReader(
-            object(), initial=object(), writer=object())
+        HttpResponseReader(object(), initial=object(), writer=object())
 
     def test_initial(self):
         initial_mock = object()
 
         reader = HttpResponseReader(
-            object(), initial=initial_mock, writer=object())
+            object(), initial=initial_mock, writer=object()
+        )
 
         assert initial_mock is reader.initial
 
@@ -340,6 +348,7 @@ class HttpResponseReaderTestCase:
         writer_mock = object()
 
         reader = HttpResponseReader(
-            object(), writer=writer_mock, initial=object())
+            object(), writer=writer_mock, initial=object()
+        )
 
         assert writer_mock is reader.writer

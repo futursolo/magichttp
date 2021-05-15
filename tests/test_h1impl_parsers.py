@@ -15,17 +15,30 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from magichttp.h1impl.parsers import UnparsableHttpMessage, \
-    parse_request_initial, parse_response_initial, \
-    discover_request_body_length, \
-    BODY_IS_CHUNKED, discover_response_body_length, BODY_IS_ENDLESS, \
-    is_chunked_body, InvalidTransferEncoding, InvalidContentLength, \
-    parse_chunk_length, InvalidChunkLength
-from magichttp import HttpVersion, HttpRequestMethod, HttpRequestInitial, \
-    HttpResponseInitial, HttpStatusCode
-
-import pytest
 import magicdict
+import pytest
+
+from magichttp import (
+    HttpRequestInitial,
+    HttpRequestMethod,
+    HttpResponseInitial,
+    HttpStatusCode,
+    HttpVersion,
+)
+from magichttp.h1impl.parsers import (
+    BODY_IS_CHUNKED,
+    BODY_IS_ENDLESS,
+    InvalidChunkLength,
+    InvalidContentLength,
+    InvalidTransferEncoding,
+    UnparsableHttpMessage,
+    discover_request_body_length,
+    discover_response_body_length,
+    is_chunked_body,
+    parse_chunk_length,
+    parse_request_initial,
+    parse_response_initial,
+)
 
 
 class H1IsChunkedBodyTestCase:
@@ -70,7 +83,8 @@ class H1ParseRequestInitialTestCase:
         buf = bytearray(
             b"POST / HTTP/1.1\r\nContent-Length: 20\r\n"
             b"Host: localhost\r\nTransfer-Encoding: Identity\r\n"
-            b"X-Scheme: HTTP\r\n\r\n")
+            b"X-Scheme: HTTP\r\n\r\n"
+        )
 
         req = parse_request_initial(buf)
 
@@ -89,7 +103,8 @@ class H1ParseRequestInitialTestCase:
 
         with pytest.raises(UnparsableHttpMessage):
             parse_request_initial(
-                bytearray(b"GET / HTTP/1.1\r\nContent-Length\r\n\r\n"))
+                bytearray(b"GET / HTTP/1.1\r\nContent-Length\r\n\r\n")
+            )
 
 
 class H1ParseResponseInitialTestCase:
@@ -100,7 +115,8 @@ class H1ParseResponseInitialTestCase:
             uri="/",
             scheme="https",
             headers=magicdict.FrozenTolerantMagicDict(),
-            authority=None)
+            authority=None,
+        )
 
         buf = bytearray(b"HTTP/1.1 200 OK\r\n\r")
 
@@ -123,15 +139,18 @@ class H1ParseResponseInitialTestCase:
             uri="/",
             scheme="https",
             headers=magicdict.FrozenTolerantMagicDict(),
-            authority=None)
+            authority=None,
+        )
 
         with pytest.raises(UnparsableHttpMessage):
             parse_response_initial(
-                bytearray(b"HTTP/1.1 ???200 Not OK\r\n\r\n"), req_initial=req)
+                bytearray(b"HTTP/1.1 ???200 Not OK\r\n\r\n"), req_initial=req
+            )
 
         with pytest.raises(UnparsableHttpMessage):
             parse_response_initial(
-                bytearray(b"HTTP/1.1 200 OK\r\nb\r\n\r\n"), req_initial=req)
+                bytearray(b"HTTP/1.1 200 OK\r\nb\r\n\r\n"), req_initial=req
+            )
 
 
 class H1DiscoverRequestBodyLengthTestCase:
@@ -142,9 +161,14 @@ class H1DiscoverRequestBodyLengthTestCase:
             uri="/",
             scheme=None,
             headers=magicdict.FrozenTolerantMagicDict(
-                [("connection", "Upgrade"), ("upgrade", "My-Super-Proto"),
-                 ("content-length", "20")]),
-            authority=None)
+                [
+                    ("connection", "Upgrade"),
+                    ("upgrade", "My-Super-Proto"),
+                    ("content-length", "20"),
+                ]
+            ),
+            authority=None,
+        )
 
         assert discover_request_body_length(req) == BODY_IS_ENDLESS
 
@@ -155,9 +179,10 @@ class H1DiscoverRequestBodyLengthTestCase:
             uri="/",
             scheme=None,
             headers=magicdict.FrozenTolerantMagicDict(
-                [("content-length", "20"),
-                 ("transfer-encoding", "Chunked")]),
-            authority=None)
+                [("content-length", "20"), ("transfer-encoding", "Chunked")]
+            ),
+            authority=None,
+        )
 
         assert discover_request_body_length(req) == BODY_IS_CHUNKED
 
@@ -168,8 +193,10 @@ class H1DiscoverRequestBodyLengthTestCase:
             uri="/",
             scheme=None,
             headers=magicdict.FrozenTolerantMagicDict(
-                [("content-length", "20")]),
-            authority=None)
+                [("content-length", "20")]
+            ),
+            authority=None,
+        )
 
         assert discover_request_body_length(req) == 20
 
@@ -180,8 +207,10 @@ class H1DiscoverRequestBodyLengthTestCase:
             uri="/",
             scheme=None,
             headers=magicdict.FrozenTolerantMagicDict(
-                [("content-length", "4e21")]),
-            authority=None)
+                [("content-length", "4e21")]
+            ),
+            authority=None,
+        )
 
         with pytest.raises(InvalidContentLength):
             discover_request_body_length(req)
@@ -193,7 +222,8 @@ class H1DiscoverRequestBodyLengthTestCase:
             uri="/",
             scheme=None,
             headers=magicdict.FrozenTolerantMagicDict(),
-            authority=None)
+            authority=None,
+        )
 
         assert discover_request_body_length(req) == 0
 
@@ -206,17 +236,23 @@ class H1DiscoverResponseBodyLengthTestCase:
             uri="/",
             scheme="https",
             headers=magicdict.FrozenTolerantMagicDict(
-                [("Connection", "Upgrade")]),
-            authority=None)
+                [("Connection", "Upgrade")]
+            ),
+            authority=None,
+        )
 
         res = HttpResponseInitial(
             HttpStatusCode.SWITCHING_PROTOCOLS,
             version=HttpVersion.V1_1,
             headers=magicdict.FrozenTolerantMagicDict(
-                [("connection", "Upgrade")]))
+                [("connection", "Upgrade")]
+            ),
+        )
 
-        assert discover_response_body_length(
-            res, req_initial=req) == BODY_IS_ENDLESS
+        assert (
+            discover_response_body_length(res, req_initial=req)
+            == BODY_IS_ENDLESS
+        )
 
     def test_head_request(self):
         req = HttpRequestInitial(
@@ -225,13 +261,16 @@ class H1DiscoverResponseBodyLengthTestCase:
             uri="/",
             scheme="https",
             headers=magicdict.FrozenTolerantMagicDict(),
-            authority=None)
+            authority=None,
+        )
 
         res = HttpResponseInitial(
             HttpStatusCode.OK,
             version=HttpVersion.V1_1,
             headers=magicdict.FrozenTolerantMagicDict(
-                [("content-length", "20")]))
+                [("content-length", "20")]
+            ),
+        )
 
         assert discover_response_body_length(res, req_initial=req) == 0
 
@@ -242,12 +281,14 @@ class H1DiscoverResponseBodyLengthTestCase:
             uri="/",
             scheme="https",
             headers=magicdict.FrozenTolerantMagicDict(),
-            authority=None)
+            authority=None,
+        )
 
         res = HttpResponseInitial(
             HttpStatusCode.NO_CONTENT,
             version=HttpVersion.V1_1,
-            headers=magicdict.FrozenTolerantMagicDict())
+            headers=magicdict.FrozenTolerantMagicDict(),
+        )
 
         assert discover_response_body_length(res, req_initial=req) == 0
 
@@ -258,16 +299,21 @@ class H1DiscoverResponseBodyLengthTestCase:
             uri="/",
             scheme=None,
             headers=magicdict.FrozenTolerantMagicDict(),
-            authority=None)
+            authority=None,
+        )
 
         res = HttpResponseInitial(
             HttpStatusCode.OK,
             version=HttpVersion.V1_1,
             headers=magicdict.FrozenTolerantMagicDict(
-                [("transfer-encoding", "Chunked")]))
+                [("transfer-encoding", "Chunked")]
+            ),
+        )
 
-        assert discover_response_body_length(
-            res, req_initial=req) == BODY_IS_CHUNKED
+        assert (
+            discover_response_body_length(res, req_initial=req)
+            == BODY_IS_CHUNKED
+        )
 
     def test_response_endless(self):
         req = HttpRequestInitial(
@@ -276,15 +322,19 @@ class H1DiscoverResponseBodyLengthTestCase:
             uri="/",
             scheme="https",
             headers=magicdict.FrozenTolerantMagicDict(),
-            authority=None)
+            authority=None,
+        )
 
         res = HttpResponseInitial(
             HttpStatusCode.OK,
             version=HttpVersion.V1_1,
-            headers=magicdict.FrozenTolerantMagicDict())
+            headers=magicdict.FrozenTolerantMagicDict(),
+        )
 
-        assert discover_response_body_length(
-            res, req_initial=req) == BODY_IS_ENDLESS
+        assert (
+            discover_response_body_length(res, req_initial=req)
+            == BODY_IS_ENDLESS
+        )
 
     def test_response_content_length(self):
         req = HttpRequestInitial(
@@ -293,13 +343,16 @@ class H1DiscoverResponseBodyLengthTestCase:
             uri="/",
             scheme=None,
             headers=magicdict.FrozenTolerantMagicDict(),
-            authority=None)
+            authority=None,
+        )
 
         res = HttpResponseInitial(
             HttpStatusCode.OK,
             version=HttpVersion.V1_1,
             headers=magicdict.FrozenTolerantMagicDict(
-                [("content-length", "20")]))
+                [("content-length", "20")]
+            ),
+        )
 
         assert discover_response_body_length(res, req_initial=req) == 20
 

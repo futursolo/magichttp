@@ -15,24 +15,30 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from magichttp import HttpRequestWriter, HttpResponseWriter
-from magichttp.writers import HttpRequestWriterDelegate, \
-    HttpResponseWriterDelegate
-from magichttp import WriteAfterFinishedError, WriteAbortedError
-
-from test_helper import TestHelper
-
 import asyncio
 import os
-import pytest
 import time
 
+from test_helper import TestHelper
+import pytest
+
+from magichttp import (
+    HttpRequestWriter,
+    HttpResponseWriter,
+    WriteAbortedError,
+    WriteAfterFinishedError,
+)
+from magichttp.writers import (
+    HttpRequestWriterDelegate,
+    HttpResponseWriterDelegate,
+)
 
 helper = TestHelper()
 
 
 class HttpWriterDelegateMock(
-        HttpRequestWriterDelegate, HttpResponseWriterDelegate):
+    HttpRequestWriterDelegate, HttpResponseWriterDelegate
+):
     def __init__(self):
         self.write_called = False
         self.data_pieces = []
@@ -239,7 +245,8 @@ class HttpResponseWriterTestCase:
         initial_mock = object()
 
         writer = HttpResponseWriter(
-            object(), initial=initial_mock, reader=object())
+            object(), initial=initial_mock, reader=object()
+        )
 
         assert initial_mock is writer.initial
 
@@ -247,13 +254,13 @@ class HttpResponseWriterTestCase:
         reader_mock = object()
 
         writer = HttpResponseWriter(
-            object(), reader=reader_mock, initial=object())
+            object(), reader=reader_mock, initial=object()
+        )
 
         assert reader_mock is writer.reader
 
     def test_reader_attr_err(self):
-        writer = HttpResponseWriter(
-            object(), reader=None, initial=object())
+        writer = HttpResponseWriter(object(), reader=None, initial=object())
 
         with pytest.raises(AttributeError):
             writer.reader

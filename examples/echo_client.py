@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-#   Copyright 2018 Kaede Hoshikawa
+#   Copyright 2021 Kaede Hoshikawa
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -15,11 +15,11 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from typing import Tuple, Optional
+from typing import Optional, Tuple
+import asyncio
+import urllib.parse
 
 import magichttp
-import urllib.parse
-import asyncio
 
 
 class _EchoClientProtocol(magichttp.HttpClientProtocol):
@@ -29,7 +29,8 @@ class _EchoClientProtocol(magichttp.HttpClientProtocol):
         self.conn_made_fur: "asyncio.Future[None]" = asyncio.Future()
 
     def connection_made(  # type: ignore
-            self, transport: asyncio.Transport) -> None:
+        self, transport: asyncio.Transport
+    ) -> None:
         super().connection_made(transport)
 
         if not self.conn_made_fur.done():
@@ -48,10 +49,15 @@ class _EchoClientProtocol(magichttp.HttpClientProtocol):
 async def get_page(url: str) -> Tuple[magichttp.HttpResponseInitial, bytes]:
     parsed_url = urllib.parse.urlparse(url)
 
+    assert parsed_url.hostname is not None, "Hostname cannot be None."
+
     _, protocol = await asyncio.get_event_loop().create_connection(
         _EchoClientProtocol,
         host=parsed_url.hostname,
-        port=parsed_url.port or 80)
+        port=parsed_url.port or 80,
+    )
+
+    assert isinstance(protocol, _EchoClientProtocol)
 
     await protocol.conn_made_fur
 
@@ -60,10 +66,11 @@ async def get_page(url: str) -> Tuple[magichttp.HttpResponseInitial, bytes]:
     print(f"Connected to: {ip}:{port}")
 
     writer = await protocol.write_request(
-        magichttp.HttpRequestMethod.Get,
+        magichttp.HttpRequestMethod.GET,
         uri=parsed_url.path,
         authority=parsed_url.netloc,
-        scheme=parsed_url.scheme)
+        scheme=parsed_url.scheme,
+    )
 
     print(f"Request Sent: {writer.initial}")
 
@@ -76,10 +83,10 @@ async def get_page(url: str) -> Tuple[magichttp.HttpResponseInitial, bytes]:
     try:
         body = await reader.read()
 
-    except magichttp.HttpStreamFinishedError:
+    except magichttp.ReadFinishedError:
         body = b""
 
-    print(f"Body Received: {body}")
+    print(f"Body Received: {body!r}")
     print("Stream Finished.")
 
     protocol.close()

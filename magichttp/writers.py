@@ -16,7 +16,6 @@
 #   limitations under the License.
 
 from typing import Optional
-
 import abc
 import asyncio
 import typing

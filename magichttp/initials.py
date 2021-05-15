@@ -15,14 +15,13 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from typing import Optional, Union, Iterable, Tuple, Mapping
-
+from typing import Iterable, Mapping, Optional, Tuple, Union
 import typing
 
 if typing.TYPE_CHECKING:  # pragma: no cover
-    from . import constants  # noqa: F401
-
     import magicdict  # noqa: F401
+
+    from . import constants  # noqa: F401
 
 __all__ = ["HttpRequestInitial", "HttpResponseInitial"]
 

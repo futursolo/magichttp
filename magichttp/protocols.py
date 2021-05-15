@@ -15,15 +15,12 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from typing import AsyncIterator, Optional, Union, Mapping, Iterable, Tuple
-
-from . import h1impl
-from . import readers
-from . import constants
-
-import asyncio
+from typing import AsyncIterator, Iterable, Mapping, Optional, Tuple, Union
 import abc
+import asyncio
 import typing
+
+from . import constants, h1impl, readers
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from . import writers  # noqa: F401

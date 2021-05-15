@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-#   Copyright 2018 Kaede Hoshikawa
+#   Copyright 2021 Kaede Hoshikawa
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -16,12 +16,11 @@
 #   limitations under the License.
 
 from typing import Optional, Set
-
 import asyncio
-import magichttp
+import traceback
 import weakref
 
-import traceback
+import magichttp
 
 
 class _EchoServerProtocol(magichttp.HttpServerProtocol):
@@ -33,7 +32,8 @@ class _EchoServerProtocol(magichttp.HttpServerProtocol):
         self.conn_made_fur: "asyncio.Future[None]" = asyncio.Future()
 
     def connection_made(  # type: ignore
-            self, transport: asyncio.Transport) -> None:
+        self, transport: asyncio.Transport
+    ) -> None:
         super().connection_made(transport)
 
         if not self.conn_made_fur.done():
@@ -51,8 +51,9 @@ class _EchoServerProtocol(magichttp.HttpServerProtocol):
 
 class EchoHttpServer:
     def __init__(self) -> None:
-        self._protocols: "weakref.WeakSet[_EchoServerProtocol]" = \
+        self._protocols: "weakref.WeakSet[_EchoServerProtocol]" = (
             weakref.WeakSet()
+        )
 
         self._loop = asyncio.get_event_loop()
 
@@ -64,29 +65,31 @@ class EchoHttpServer:
         assert self._srv is None
 
         self._srv = await self._loop.create_server(
-            self._create_protocol, port=port, host=host)
+            self._create_protocol, port=port, host=host
+        )
 
     def _create_protocol(self) -> _EchoServerProtocol:
         protocol = _EchoServerProtocol()
         self._protocols.add(protocol)
 
-        self._tsks.add(
-            self._loop.create_task(self._read_requests(protocol)))
+        self._tsks.add(self._loop.create_task(self._read_requests(protocol)))
 
         return protocol
 
     async def _write_echo(
-            self, req_reader: magichttp.HttpRequestReader) -> None:
+        self, req_reader: magichttp.HttpRequestReader
+    ) -> None:
         print(f"New Request: {req_reader.initial}")
         try:
             body = await req_reader.read()
 
-        except magichttp.HttpStreamReadFinishedError:
+        except magichttp.ReadFinishedError:
             body = b""
-        print(f"Request Body: {body}")
+        print(f"Request Body: {body!r}")
 
         writer = req_reader.write_response(
-            200, headers={"Content-Type": "text/plain"})
+            200, headers={"Content-Type": "text/plain"}
+        )
         print(f"Response Sent: {writer.initial}")
 
         writer.write(b"Got it!")
@@ -133,7 +136,8 @@ class EchoHttpServer:
 
         if self._protocols:
             await asyncio.wait(
-                [protocol.wait_closed() for protocol in self._protocols])
+                [protocol.wait_closed() for protocol in self._protocols]
+            )
 
         await asyncio.sleep(0)
 

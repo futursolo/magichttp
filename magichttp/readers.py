@@ -15,13 +15,12 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from typing import Union, Mapping, Iterable, Tuple, Optional, Any
-
-from . import constants
-
+from typing import Any, Iterable, Mapping, Optional, Tuple, Union
 import abc
 import asyncio
 import typing
+
+from . import constants
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from . import initials  # noqa: F401

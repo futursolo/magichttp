@@ -16,6 +16,7 @@
 #   limitations under the License.
 
 import asyncio
+
 import magichttp
 
 
@@ -33,7 +34,8 @@ class TestHelper:
 
             try:
                 await asyncio.wait_for(
-                    coro_fn(_self, *args, **kwargs), timeout=5)
+                    coro_fn(_self, *args, **kwargs), timeout=5
+                )
 
             except Exception as e:
                 exc = e
@@ -86,5 +88,7 @@ class TestHelper:
         assert len(buf_parts) == len(header_lines)
 
         for line in header_lines:
-            line = line % {b"self_ver_bytes": self.get_version_bytes()}
+            line = line % {  # noqa: S001
+                b"self_ver_bytes": self.get_version_bytes()
+            }
             assert line in buf_parts

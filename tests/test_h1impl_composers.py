@@ -15,21 +15,20 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+from test_helper import TestHelper
+import magicdict
+
+from magichttp import (
+    HttpRequestInitial,
+    HttpRequestMethod,
+    HttpStatusCode,
+    HttpVersion,
+)
 from magichttp.h1impl.composers import (
+    compose_chunked_body,
     compose_request_initial,
     compose_response_initial,
-    compose_chunked_body,
 )
-from magichttp import (
-    HttpRequestMethod,
-    HttpVersion,
-    HttpRequestInitial,
-    HttpStatusCode,
-)
-
-from test_helper import TestHelper
-
-import magicdict
 
 helper = TestHelper()
 

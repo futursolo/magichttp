@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-#   Copyright 2020 Kaede Hoshikawa
+#   Copyright 2021 Kaede Hoshikawa
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -15,19 +15,14 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from typing import Generic, TypeVar, Optional, Union, Mapping, Iterable, Tuple
-
-from . import parsers
-from . import composers
-
-from .. import readers
-from .. import writers
-from .. import constants
-
-import asyncio
-import typing
+from typing import Generic, Iterable, Mapping, Optional, Tuple, TypeVar, Union
 import abc
+import asyncio
 import contextlib
+import typing
+
+from .. import constants, readers, writers
+from . import composers, parsers
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from . import impls  # noqa: F401

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-#   Copyright 2020 Kaede Hoshikawa
+#   Copyright 2021 Kaede Hoshikawa
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -15,29 +15,22 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from typing import Optional, Union, Mapping, Iterable, Tuple
-
-from . import stream_mgrs
-
-from .. import protocols
-from .. import readers
-from .. import writers
-
+from typing import Iterable, Mapping, Optional, Tuple, Union
 import abc
 import asyncio
 import typing
 
+from .. import protocols, readers, writers
+from . import stream_mgrs
+
 if typing.TYPE_CHECKING:
     from .. import constants  # noqa: F401
 
-_HeaderType = Union[
-    Mapping[str, str],
-    Iterable[Tuple[str, str]]]
+_HeaderType = Union[Mapping[str, str], Iterable[Tuple[str, str]]]
 
 
 class BaseH1Impl(protocols.BaseHttpProtocolDelegate):
-    def __init__(
-            self, protocol: protocols.BaseHttpProtocol) -> None:
+    def __init__(self, protocol: protocols.BaseHttpProtocol) -> None:
         self._protocol = protocol
         self._transport = protocol.transport
 
@@ -87,8 +80,8 @@ class BaseH1Impl(protocols.BaseHttpProtocolDelegate):
 
     @abc.abstractmethod
     def _set_abort_error(
-        self,
-            __cause: Optional[BaseException]) -> None:  # pragma: no cover
+        self, __cause: Optional[BaseException]
+    ) -> None:  # pragma: no cover
         raise NotImplementedError
 
     def abort(self) -> None:
@@ -106,8 +99,8 @@ class BaseH1Impl(protocols.BaseHttpProtocolDelegate):
 
 class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
     def __init__(
-        self, protocol: protocols.HttpServerProtocol,
-            max_initial_size: int) -> None:
+        self, protocol: protocols.HttpServerProtocol, max_initial_size: int
+    ) -> None:
         super().__init__(protocol)
 
         self._max_initial_size = max_initial_size
@@ -115,7 +108,8 @@ class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
         self._exc: Optional[readers.ReadAbortedError] = None
 
         self.__stream = stream_mgrs.H1ServerStreamManager(
-            self, self._buf, max_initial_size)
+            self, self._buf, max_initial_size
+        )
 
         self._read_request_lock = asyncio.Lock()
         self._request_read = False
@@ -138,7 +132,8 @@ class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
                 self._resume_reading()
 
                 self.__stream = stream_mgrs.H1ServerStreamManager(
-                    self, self._buf, self._max_initial_size)
+                    self, self._buf, self._max_initial_size
+                )
                 self._request_read = False
 
             reader = await self._stream._read_request()
@@ -152,7 +147,8 @@ class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
 
         if __cause:
             self._exc = readers.ReadAbortedError(
-                "Read aborted due to socket error.")
+                "Read aborted due to socket error."
+            )
             self._exc.__cause__ = __cause
 
         else:
@@ -163,8 +159,11 @@ class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
 
 class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
     def __init__(
-        self, protocol: protocols.HttpClientProtocol, max_initial_size: int,
-            http_version: "constants.HttpVersion") -> None:
+        self,
+        protocol: protocols.HttpClientProtocol,
+        max_initial_size: int,
+        http_version: "constants.HttpVersion",
+    ) -> None:
         super().__init__(protocol)
 
         self._http_version = http_version
@@ -173,7 +172,8 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
         self._exc: Optional[writers.WriteAbortedError] = None
 
         self.__stream = stream_mgrs.H1ClientStreamManager(
-            self, self._buf, max_initial_size, http_version)
+            self, self._buf, max_initial_size, http_version
+        )
 
         self._write_request_lock = asyncio.Lock()
         self._request_written = False
@@ -183,10 +183,14 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
         return self.__stream
 
     async def write_request(
-        self, method: "constants.HttpRequestMethod", *,
-        uri: str, authority: Optional[str],
+        self,
+        method: "constants.HttpRequestMethod",
+        *,
+        uri: str,
+        authority: Optional[str],
         scheme: Optional[str],
-            headers: Optional[_HeaderType]) -> writers.HttpRequestWriter:
+        headers: Optional[_HeaderType],
+    ) -> writers.HttpRequestWriter:
         async with self._write_request_lock:
             if self._request_written:
                 await self._stream._wait_finished()
@@ -198,13 +202,17 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
                     raise writers.WriteAfterFinishedError
 
                 self.__stream = stream_mgrs.H1ClientStreamManager(
-                    self, self._buf, self._max_initial_size,
-                    self._http_version)
+                    self, self._buf, self._max_initial_size, self._http_version
+                )
                 self._request_written = False
 
             writer = self._stream._write_request(
-                method, uri=uri, authority=authority, scheme=scheme,
-                headers=headers)
+                method,
+                uri=uri,
+                authority=authority,
+                scheme=scheme,
+                headers=headers,
+            )
             self._request_written = True
 
             self._resume_reading()
@@ -217,7 +225,8 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
 
         if __cause:
             self._exc = writers.WriteAbortedError(
-                "Write aborted due to socket error.")
+                "Write aborted due to socket error."
+            )
             self._exc.__cause__ = __cause
 
         else:

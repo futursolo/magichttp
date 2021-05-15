@@ -15,18 +15,26 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from magichttp import HttpClientProtocol, HttpRequestMethod, \
-    WriteAfterFinishedError, ReadFinishedError, \
-    HttpServerProtocol, EntityTooLargeError, ReceivedDataMalformedError, \
-    WriteAbortedError, ReadAbortedError, HttpStatusCode, \
-    RequestInitialTooLargeError, RequestInitialMalformedError
+import asyncio
+import os
 
 from test_helper import TestHelper
-
 import pytest
-import os
-import asyncio
 
+from magichttp import (
+    EntityTooLargeError,
+    HttpClientProtocol,
+    HttpRequestMethod,
+    HttpServerProtocol,
+    HttpStatusCode,
+    ReadAbortedError,
+    ReadFinishedError,
+    ReceivedDataMalformedError,
+    RequestInitialMalformedError,
+    RequestInitialTooLargeError,
+    WriteAbortedError,
+    WriteAfterFinishedError,
+)
 
 helper = TestHelper()
 
@@ -89,7 +97,8 @@ class HttpClientProtocolTestCase:
             transport_mock._pop_stored_data(),
             b"GET / HTTP/1.1",
             b"User-Agent: %(self_ver_bytes)s",
-            b"Accept: */*")
+            b"Accept: */*",
+        )
 
         assert protocol.eof_received() is True
 
@@ -118,19 +127,21 @@ class HttpClientProtocolTestCase:
         protocol.connection_made(transport_mock)
         protocol.data_received(
             b"HTTP/1.1 204 NO CONTENT\r\n\r\n"
-            b"HTTP/1.1 204 NO CONTENT\r\n\r\n")
+            b"HTTP/1.1 204 NO CONTENT\r\n\r\n"
+        )
 
         for _ in range(0, 2):
             writer = await protocol.write_request(
-                HttpRequestMethod.GET, uri="/",
-                headers={"content-length": "5"})
+                HttpRequestMethod.GET, uri="/", headers={"content-length": "5"}
+            )
 
             helper.assert_initial_bytes(
                 transport_mock._pop_stored_data(),
                 b"GET / HTTP/1.1",
                 b"Content-Length: 5",
                 b"User-Agent: %(self_ver_bytes)s",
-                b"Accept: */*")
+                b"Accept: */*",
+            )
 
             writer.write(b"12345")
             await writer.flush()
@@ -161,7 +172,8 @@ class HttpClientProtocolTestCase:
 
         protocol.connection_made(transport_mock)
         protocol.data_received(
-            b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n12345")
+            b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n12345"
+        )
 
         writer = await protocol.write_request(HttpRequestMethod.GET, uri="/")
         writer.finish()
@@ -210,28 +222,32 @@ class HttpClientProtocolTestCase:
         protocol.connection_made(transport_mock)
         protocol.data_received(
             b"HTTP/1.0 101 Switching Protocol\r\n"
-            b"Connection: Upgrade\r\nUpgrade: WebSocket\r\n\r\n")
+            b"Connection: Upgrade\r\nUpgrade: WebSocket\r\n\r\n"
+        )
 
         writer = await protocol.write_request(
-            HttpRequestMethod.GET, uri="/", headers={
-                "connection": "Upgrade", "Upgrade": "WebSocket"})
+            HttpRequestMethod.GET,
+            uri="/",
+            headers={"connection": "Upgrade", "Upgrade": "WebSocket"},
+        )
 
         helper.assert_initial_bytes(
             transport_mock._pop_stored_data(),
             b"GET / HTTP/1.1",
             b"User-Agent: %(self_ver_bytes)s",
             b"Connection: Upgrade",
-            b"Upgrade: WebSocket")
+            b"Upgrade: WebSocket",
+        )
 
         reader = await writer.read_response()
 
-        for i in range(0, 5):
-            for j in range(0, 5):
+        for _i in range(0, 5):
+            for _j in range(0, 5):
                 data = os.urandom(1024)
                 protocol.data_received(data)
                 assert await reader.read(4096) == data
 
-            for k in range(0, 5):
+            for _k in range(0, 5):
                 data = os.urandom(1024)
                 writer.write(data)
                 assert b"".join(transport_mock._data_chunks) == data
@@ -255,7 +271,8 @@ class HttpClientProtocolTestCase:
 
         protocol.connection_made(transport_mock)
         protocol.data_received(
-            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n")
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n"
+        )
 
         writer = await protocol.write_request(HttpRequestMethod.GET, uri="/")
         writer.finish()
@@ -341,7 +358,7 @@ class HttpClientProtocolTestCase:
         data = os.urandom(5 * 1024)  # 5K
         transport_mock._data_chunks.clear()
 
-        writer.write(data[:4 * 1024])
+        writer.write(data[: 4 * 1024])
         protocol.pause_writing()
         protocol.pause_writing()
 
@@ -353,7 +370,7 @@ class HttpClientProtocolTestCase:
 
         assert tsk.done() is False
 
-        writer.write(data[4 * 1024:])
+        writer.write(data[4 * 1024 :])
         writer.finish()
         assert b"".join(transport_mock._data_chunks) == data
 
@@ -374,19 +391,19 @@ class HttpClientProtocolTestCase:
         transport_mock = TransportMock()
 
         protocol.connection_made(transport_mock)
-        protocol.data_received(
-            b"HTTP/1.1 204 NO CONTENT\r\n\r\n")
+        protocol.data_received(b"HTTP/1.1 204 NO CONTENT\r\n\r\n")
 
         writer = await protocol.write_request(
-            HttpRequestMethod.GET, uri="/",
-            headers={"content-length": "5"})
+            HttpRequestMethod.GET, uri="/", headers={"content-length": "5"}
+        )
 
         helper.assert_initial_bytes(
             transport_mock._pop_stored_data(),
             b"GET / HTTP/1.1",
             b"User-Agent: %(self_ver_bytes)s",
             b"Accept: */*",
-            b"Content-Length: 5")
+            b"Content-Length: 5",
+        )
 
         writer.write(b"12345")
         await writer.flush()
@@ -417,12 +434,11 @@ class HttpClientProtocolTestCase:
         transport_mock = TransportMock()
 
         protocol.connection_made(transport_mock)
-        protocol.data_received(
-            b"HTTP/1.1 204 NO CONTENT\r\n\r\n")
+        protocol.data_received(b"HTTP/1.1 204 NO CONTENT\r\n\r\n")
 
         writer = await protocol.write_request(
-            HttpRequestMethod.GET, uri="/",
-            headers={"content-length": "5"})
+            HttpRequestMethod.GET, uri="/", headers={"content-length": "5"}
+        )
 
         protocol.close()
 
@@ -441,7 +457,8 @@ class HttpClientProtocolTestCase:
             b"GET / HTTP/1.1",
             b"User-Agent: %(self_ver_bytes)s",
             b"Accept: */*",
-            b"Content-Length: 5")
+            b"Content-Length: 5",
+        )
 
         writer.write(b"12345")
         await writer.flush()
@@ -509,7 +526,8 @@ class HttpClientProtocolTestCase:
 
         protocol.connection_made(transport_mock)
         protocol.data_received(
-            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n")
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n"
+        )
 
         writer = await protocol.write_request(HttpRequestMethod.GET, uri="/")
         writer.finish()
@@ -532,7 +550,8 @@ class HttpClientProtocolTestCase:
 
         protocol.connection_made(transport_mock)
         protocol.data_received(
-            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n")
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n"
+        )
 
         writer = await protocol.write_request(HttpRequestMethod.GET, uri="/")
         writer.finish()
@@ -614,7 +633,8 @@ class HttpClientProtocolTestCase:
         protocol.connection_made(transport_mock)
 
         writer = await protocol.write_request(
-            HttpRequestMethod.POST, uri="/", headers={"content-type": "1"})
+            HttpRequestMethod.POST, uri="/", headers={"content-type": "1"}
+        )
 
         writer.write(os.urandom(1))
         await writer.flush()
@@ -644,14 +664,16 @@ class HttpClientProtocolTestCase:
         protocol.connection_made(transport_mock)
 
         writer = await protocol.write_request(
-            HttpRequestMethod.POST, uri="/", headers={"content-type": "1"})
+            HttpRequestMethod.POST, uri="/", headers={"content-type": "1"}
+        )
 
         writer.write(os.urandom(1))
         await writer.flush()
         writer.finish()
 
         protocol.data_received(
-            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r")
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r"
+        )
 
         protocol.connection_lost(None)
         assert transport_mock._closing is True
@@ -675,14 +697,16 @@ class HttpClientProtocolTestCase:
         protocol.connection_made(transport_mock)
 
         writer = await protocol.write_request(
-            HttpRequestMethod.POST, uri="/", headers={"content-type": "1"})
+            HttpRequestMethod.POST, uri="/", headers={"content-type": "1"}
+        )
 
         writer.write(os.urandom(1))
         await writer.flush()
         writer.finish()
 
         protocol.data_received(
-            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n")
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n"
+        )
 
         reader = await writer.read_response()
 
@@ -735,7 +759,8 @@ class HttpClientProtocolTestCase:
         protocol.connection_made(transport_mock)
 
         writer = await protocol.write_request(
-            HttpRequestMethod.POST, uri="/", headers={"content-type": "1"})
+            HttpRequestMethod.POST, uri="/", headers={"content-type": "1"}
+        )
 
         writer.write(os.urandom(1))
         await writer.flush()
@@ -764,14 +789,16 @@ class HttpClientProtocolTestCase:
         protocol.connection_made(transport_mock)
 
         writer = await protocol.write_request(
-            HttpRequestMethod.POST, uri="/", headers={"content-type": "1"})
+            HttpRequestMethod.POST, uri="/", headers={"content-type": "1"}
+        )
 
         writer.write(os.urandom(1))
         await writer.flush()
         writer.finish()
 
         protocol.data_received(
-            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r")
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r"
+        )
 
         writer.abort()
         assert transport_mock._closing is True
@@ -794,14 +821,16 @@ class HttpClientProtocolTestCase:
         protocol.connection_made(transport_mock)
 
         writer = await protocol.write_request(
-            HttpRequestMethod.POST, uri="/", headers={"content-type": "1"})
+            HttpRequestMethod.POST, uri="/", headers={"content-type": "1"}
+        )
 
         writer.write(os.urandom(1))
         await writer.flush()
         writer.finish()
 
         protocol.data_received(
-            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n")
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: Chunked\r\n\r\n"
+        )
 
         reader = await writer.read_response()
 
@@ -844,7 +873,8 @@ class HttpClientProtocolTestCase:
         protocol.connection_made(transport_mock)
         protocol.data_received(
             b"HTTP/1.1 100 Continue\r\n\r\n"
-            b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n12345")
+            b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n12345"
+        )
 
         writer = await protocol.write_request(HttpRequestMethod.GET, uri="/")
         writer.finish()
@@ -907,7 +937,8 @@ class HttpServerProtocolTestCase:
             b"HTTP/1.1 200 OK",
             b"Server: %(self_ver_bytes)s",
             b"Connection: Close",
-            b"Transfer-Encoding: Chunked")
+            b"Transfer-Encoding: Chunked",
+        )
 
         assert data.split(b"\r\n\r\n", 1)[1] == b"0\r\n\r\n"
 
@@ -948,7 +979,8 @@ class HttpServerProtocolTestCase:
             transport_mock._pop_stored_data(),
             b"HTTP/1.0 200 OK",
             b"Server: %(self_ver_bytes)s",
-            b"Connection: Close")
+            b"Connection: Close",
+        )
 
     @helper.run_async_test
     async def test_chunked_request(self):
@@ -959,7 +991,7 @@ class HttpServerProtocolTestCase:
         async def aiter_requests():
             count = 0
             async for reader in protocol:
-                await reader.read(9, exactly=True) == b"123456789"
+                assert await reader.read(9, exactly=True) == b"123456789"
 
                 with pytest.raises(ReadFinishedError):
                     await reader.read()
@@ -979,7 +1011,8 @@ class HttpServerProtocolTestCase:
         protocol.data_received(
             b"GET / HTTP/1.1\r\nTransfer-Encoding: Chunked\r\n"
             b"Connection: Close\r\n\r\n"
-            b"5\r\n12345\r\n4\r\n6789\r\n0\r\n\r\n")
+            b"5\r\n12345\r\n4\r\n6789\r\n0\r\n\r\n"
+        )
 
         await tsk
 
@@ -995,7 +1028,8 @@ class HttpServerProtocolTestCase:
             b"HTTP/1.1 200 OK",
             b"Server: %(self_ver_bytes)s",
             b"Connection: Close",
-            b"Transfer-Encoding: Chunked")
+            b"Transfer-Encoding: Chunked",
+        )
 
         assert data.split(b"\r\n\r\n", 1)[1] == b"0\r\n\r\n"
 
@@ -1013,8 +1047,7 @@ class HttpServerProtocolTestCase:
                 with pytest.raises(ReadFinishedError):
                     await reader.read()
 
-                writer = reader.write_response(
-                    HttpStatusCode.OK)
+                writer = reader.write_response(HttpStatusCode.OK)
                 writer.finish(data)
 
                 count += 1
@@ -1042,10 +1075,13 @@ class HttpServerProtocolTestCase:
             b"HTTP/1.1 200 OK",
             b"Server: %(self_ver_bytes)s",
             b"Connection: Close",
-            b"Transfer-Encoding: Chunked")
+            b"Transfer-Encoding: Chunked",
+        )
 
-        assert final_data.split(b"\r\n\r\n", 1)[1] == \
-            b"14\r\n" + data + b"\r\n0\r\n\r\n"
+        assert (
+            final_data.split(b"\r\n\r\n", 1)[1]
+            == b"14\r\n" + data + b"\r\n0\r\n\r\n"
+        )
 
     @helper.run_async_test
     async def test_simple_response_with_content_length(self):
@@ -1062,7 +1098,8 @@ class HttpServerProtocolTestCase:
                     await reader.read()
 
                 writer = reader.write_response(
-                    HttpStatusCode.OK, headers={"content-length": "20"})
+                    HttpStatusCode.OK, headers={"content-length": "20"}
+                )
                 writer.finish(data)
 
                 count += 1
@@ -1090,7 +1127,8 @@ class HttpServerProtocolTestCase:
             b"HTTP/1.1 200 OK",
             b"Server: %(self_ver_bytes)s",
             b"Connection: Close",
-            b"Content-Length: 20")
+            b"Content-Length: 20",
+        )
 
         assert final_data.split(b"\r\n\r\n", 1)[1] == data
 
@@ -1101,8 +1139,8 @@ class HttpServerProtocolTestCase:
 
         protocol.connection_made(transport_mock)
         protocol.data_received(
-            b"GET / HTTP/1.1\r\n\r\n"
-            b"GET / HTTP/1.1\r\n\r\n")
+            b"GET / HTTP/1.1\r\n\r\n" b"GET / HTTP/1.1\r\n\r\n"
+        )
 
         async def aiter_requests():
             count = 0
@@ -1117,7 +1155,8 @@ class HttpServerProtocolTestCase:
                 helper.assert_initial_bytes(
                     transport_mock._pop_stored_data(),
                     b"HTTP/1.1 204 No Content",
-                    b"Server: %(self_ver_bytes)s")
+                    b"Server: %(self_ver_bytes)s",
+                )
 
                 writer.finish()
 
@@ -1151,7 +1190,8 @@ class HttpServerProtocolTestCase:
         protocol.connection_made(transport_mock)
         protocol.data_received(
             b"GET / HTTP/1.0\r\nConnection: Keep-Alive\r\n\r\n"
-            b"GET / HTTP/1.0\r\nConnection: Keep-Alive\r\n\r\n")
+            b"GET / HTTP/1.0\r\nConnection: Keep-Alive\r\n\r\n"
+        )
 
         async def aiter_requests():
             count = 0
@@ -1167,7 +1207,8 @@ class HttpServerProtocolTestCase:
                     transport_mock._pop_stored_data(),
                     b"HTTP/1.0 204 No Content",
                     b"Connection: Keep-Alive",
-                    b"Server: %(self_ver_bytes)s")
+                    b"Server: %(self_ver_bytes)s",
+                )
 
                 writer.finish()
 
@@ -1211,7 +1252,8 @@ class HttpServerProtocolTestCase:
                 transport_mock._pop_stored_data(),
                 b"HTTP/1.0 200 OK",
                 b"Server: %(self_ver_bytes)s",
-                b"Connection: Close")
+                b"Connection: Close",
+            )
 
             for _ in range(0, 5):
                 data = os.urandom(1024)
@@ -1236,7 +1278,8 @@ class HttpServerProtocolTestCase:
         protocol.connection_made(transport_mock)
         protocol.data_received(
             b"GET / HTTP/1.1\r\nConnection: Upgrade\r\n"
-            b"Upgrade: WebSocket\r\n\r\n")
+            b"Upgrade: WebSocket\r\n\r\n"
+        )
 
         count = 0
         async for reader in protocol:
@@ -1247,22 +1290,24 @@ class HttpServerProtocolTestCase:
 
             writer = reader.write_response(
                 HttpStatusCode.SWITCHING_PROTOCOLS,
-                headers={"Connection": "Upgrade", "Upgrade": "WebSocket"})
+                headers={"Connection": "Upgrade", "Upgrade": "WebSocket"},
+            )
 
             helper.assert_initial_bytes(
                 transport_mock._pop_stored_data(),
                 b"HTTP/1.1 101 Switching Protocols",
                 b"Server: %(self_ver_bytes)s",
                 b"Upgrade: WebSocket",
-                b"Connection: Upgrade")
+                b"Connection: Upgrade",
+            )
 
-            for i in range(0, 5):
-                for j in range(0, 5):
+            for _i in range(0, 5):
+                for _j in range(0, 5):
                     data = os.urandom(1024)
                     protocol.data_received(data)
                     assert await reader.read(4096) == data
 
-                for k in range(0, 5):
+                for _k in range(0, 5):
                     data = os.urandom(1024)
                     writer.write(data)
                     assert b"".join(transport_mock._data_chunks) == data
@@ -1286,7 +1331,8 @@ class HttpServerProtocolTestCase:
 
         protocol.connection_made(transport_mock)
         protocol.data_received(
-            b"GET / HTTP/1.1\r\nConnection: Keep-Alive\r\n\r\n")
+            b"GET / HTTP/1.1\r\nConnection: Keep-Alive\r\n\r\n"
+        )
 
         count = 0
 
@@ -1297,8 +1343,8 @@ class HttpServerProtocolTestCase:
                 await reader.read()
 
             writer = reader.write_response(
-                HttpStatusCode.NO_CONTENT,
-                headers={"connection": "Keep-Alive"})
+                HttpStatusCode.NO_CONTENT, headers={"connection": "Keep-Alive"}
+            )
 
             writer.finish()
 
@@ -1306,7 +1352,8 @@ class HttpServerProtocolTestCase:
                 transport_mock._pop_stored_data(),
                 b"HTTP/1.1 204 No Content",
                 b"Server: %(self_ver_bytes)s",
-                b"Connection: Keep-Alive")
+                b"Connection: Keep-Alive",
+            )
 
             protocol.close()
 
@@ -1324,7 +1371,8 @@ class HttpServerProtocolTestCase:
 
         protocol.connection_made(transport_mock)
         protocol.data_received(
-            b"GET / HTTP/1.1\r\nConnection: Keep-Alive\r\n\r\n")
+            b"GET / HTTP/1.1\r\nConnection: Keep-Alive\r\n\r\n"
+        )
 
         async def wait_closed():
             await protocol.wait_closed()
@@ -1347,8 +1395,8 @@ class HttpServerProtocolTestCase:
                 await reader.read()
 
             writer = reader.write_response(
-                HttpStatusCode.NO_CONTENT,
-                headers={"connection": "Keep-Alive"})
+                HttpStatusCode.NO_CONTENT, headers={"connection": "Keep-Alive"}
+            )
 
             writer.finish()
 
@@ -1356,7 +1404,8 @@ class HttpServerProtocolTestCase:
                 transport_mock._pop_stored_data(),
                 b"HTTP/1.1 204 No Content",
                 b"Server: %(self_ver_bytes)s",
-                b"Connection: Keep-Alive")
+                b"Connection: Keep-Alive",
+            )
 
         assert count == 1
 
@@ -1393,7 +1442,8 @@ class HttpServerProtocolTestCase:
             b"HTTP/1.1 431 Request Header Fields Too Large",
             b"Server: %(self_ver_bytes)s",
             b"Transfer-Encoding: Chunked",
-            b"Connection: Close")
+            b"Connection: Close",
+        )
 
         assert data.split(b"\r\n\r\n", 1)[1] == b"5\r\n12345\r\n0\r\n\r\n"
 
@@ -1421,7 +1471,8 @@ class HttpServerProtocolTestCase:
             b"HTTP/1.1 400 Bad Request",
             b"Server: %(self_ver_bytes)s",
             b"Transfer-Encoding: Chunked",
-            b"Connection: Close")
+            b"Connection: Close",
+        )
 
         assert data.split(b"\r\n\r\n", 1)[1] == b"5\r\n12345\r\n0\r\n\r\n"
 
@@ -1433,7 +1484,8 @@ class HttpServerProtocolTestCase:
         protocol.connection_made(transport_mock)
         protocol.data_received(
             b"GET / HTTP/1.1\r\nConnection: Keep-Alive\r\n"
-            b"Transfer-Encoding: Chunked\r\n\r\n")
+            b"Transfer-Encoding: Chunked\r\n\r\n"
+        )
 
         async for reader in protocol:
             assert reader.initial.headers["transfer-encoding"] == "Chunked"
@@ -1444,7 +1496,8 @@ class HttpServerProtocolTestCase:
                 await reader.read()
 
             writer = reader.write_response(
-                HttpStatusCode.REQUEST_ENTITY_TOO_LARGE)
+                HttpStatusCode.REQUEST_ENTITY_TOO_LARGE
+            )
             writer.finish()
 
             assert transport_mock._closing is True
@@ -1457,7 +1510,8 @@ class HttpServerProtocolTestCase:
             b"HTTP/1.1 413 Request Entity Too Large",
             b"Server: %(self_ver_bytes)s",
             b"Transfer-Encoding: Chunked",
-            b"Connection: Close")
+            b"Connection: Close",
+        )
 
         assert data.split(b"\r\n\r\n", 1)[1] == b"0\r\n\r\n"
 
@@ -1469,7 +1523,8 @@ class HttpServerProtocolTestCase:
         protocol.connection_made(transport_mock)
         protocol.data_received(
             b"GET / HTTP/1.1\r\nConnection: Keep-Alive\r\n"
-            b"Transfer-Encoding: Chunked\r\n\r\n")
+            b"Transfer-Encoding: Chunked\r\n\r\n"
+        )
 
         async for reader in protocol:
             assert reader.initial.headers["transfer-encoding"] == "Chunked"
@@ -1479,8 +1534,7 @@ class HttpServerProtocolTestCase:
             with pytest.raises(ReceivedDataMalformedError):
                 await reader.read()
 
-            writer = reader.write_response(
-                HttpStatusCode.BAD_REQUEST)
+            writer = reader.write_response(HttpStatusCode.BAD_REQUEST)
             writer.finish()
 
             assert transport_mock._closing is True
@@ -1493,7 +1547,8 @@ class HttpServerProtocolTestCase:
             b"HTTP/1.1 400 Bad Request",
             b"Server: %(self_ver_bytes)s",
             b"Transfer-Encoding: Chunked",
-            b"Connection: Close")
+            b"Connection: Close",
+        )
 
         assert data.split(b"\r\n\r\n", 1)[1] == b"0\r\n\r\n"
 
@@ -1776,7 +1831,8 @@ class HttpServerProtocolTestCase:
 
         protocol.data_received(
             b"GET / HTTP/1.1\r\nExpect: 100-continue\r\n"
-            b"Connection: Close\r\n\r\n")
+            b"Connection: Close\r\n\r\n"
+        )
 
         await tsk
 
@@ -1789,15 +1845,14 @@ class HttpServerProtocolTestCase:
 
         data_continue, data = data.split(b"\r\n\r\n", 1)
 
-        helper.assert_initial_bytes(
-            data_continue,
-            b"HTTP/1.1 100 Continue")
+        helper.assert_initial_bytes(data_continue, b"HTTP/1.1 100 Continue")
 
         helper.assert_initial_bytes(
             data,
             b"HTTP/1.1 200 OK",
             b"Server: %(self_ver_bytes)s",
             b"Connection: Close",
-            b"Transfer-Encoding: Chunked")
+            b"Transfer-Encoding: Chunked",
+        )
 
         assert data.split(b"\r\n\r\n", 1)[1] == b"0\r\n\r\n"
