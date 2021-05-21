@@ -15,11 +15,12 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from . import _version, constants
+from . import _version, constants, exceptions
 from . import h1impl as _h1impl  # Resolve Import Conflicts.  # noqa: F401
 from . import initials, protocols, readers, writers
 from ._version import *  # noqa: F401, F403
 from .constants import *  # noqa: F401, F403
+from .exceptions import *  # noqa: F401, F403
 from .initials import *  # noqa: F401, F403
 from .protocols import *  # noqa: F401, F403
 from .readers import *  # noqa: F401, F403
@@ -32,4 +33,5 @@ __all__ = (
     + protocols.__all__
     + readers.__all__
     + writers.__all__
+    + exceptions.__all__
 )

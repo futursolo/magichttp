@@ -20,43 +20,17 @@ import abc
 import asyncio
 import typing
 
+from . import exceptions
+
 if typing.TYPE_CHECKING:  # pragma: no cover
     from . import initials  # noqa: F401
     from . import readers  # noqa: F401
 
 __all__ = [
-    "WriteAfterFinishedError",
-    "WriteAbortedError",
     "BaseHttpStreamWriter",
     "HttpRequestWriter",
     "HttpResponseWriter",
 ]
-
-
-class BaseWriteException(Exception):
-    """
-    The base class of all write exceptions.
-    """
-
-    pass
-
-
-class WriteAfterFinishedError(EOFError, BaseWriteException):
-    """
-    Raised when :method:`BaseHttpStreamWriter.write()` or
-    :method:`BaseHttpStreamWriter.finish()`is called after
-    the stream is finished.
-    """
-
-    pass
-
-
-class WriteAbortedError(BaseWriteException):
-    """
-    Raised when the stream is aborted before writing the end.
-    """
-
-    pass
 
 
 class BaseHttpStreamWriterDelegate(abc.ABC):  # pragma: no cover
@@ -87,7 +61,7 @@ class BaseHttpStreamWriter(abc.ABC):
         self._flush_lock = asyncio.Lock()
 
         self._finished = asyncio.Event()
-        self._exc: Optional[BaseWriteException] = None
+        self._exc: Optional[exceptions.BaseWriteException] = None
 
     def write(self, data: bytes) -> None:
         """
@@ -97,7 +71,7 @@ class BaseHttpStreamWriter(abc.ABC):
             if self._exc:
                 raise self._exc
 
-            raise WriteAfterFinishedError
+            raise exceptions.WriteAfterFinishedError
 
         if not data:
             return
@@ -105,7 +79,7 @@ class BaseHttpStreamWriter(abc.ABC):
         try:
             self._delegate.write_data(data, finished=False)
 
-        except BaseWriteException as e:
+        except exceptions.BaseWriteException as e:
             self._finished.set()
             if self._exc is None:
                 self._exc = e
@@ -130,7 +104,7 @@ class BaseHttpStreamWriter(abc.ABC):
             except asyncio.CancelledError:  # pragma: no cover
                 raise
 
-            except BaseWriteException as e:
+            except exceptions.BaseWriteException as e:
                 self._finished.set()
                 if self._exc is None:
                     self._exc = e
@@ -146,14 +120,14 @@ class BaseHttpStreamWriter(abc.ABC):
                 raise self._exc
 
             if data:
-                raise WriteAfterFinishedError
+                raise exceptions.WriteAfterFinishedError
 
             return
 
         try:
             self._delegate.write_data(data, finished=True)
 
-        except BaseWriteException as e:
+        except exceptions.BaseWriteException as e:
             if self._exc is None:
                 self._exc = e
 

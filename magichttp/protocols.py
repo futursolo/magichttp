@@ -20,7 +20,7 @@ import abc
 import asyncio
 import typing
 
-from . import constants, h1impl, readers
+from . import constants, exceptions, h1impl, readers
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from . import writers  # noqa: F401
@@ -209,7 +209,10 @@ class HttpServerProtocol(
         try:
             return await self._delegate.read_request()
 
-        except (readers.ReadFinishedError, readers.ReadAbortedError) as e:
+        except (
+            exceptions.ReadFinishedError,
+            exceptions.ReadAbortedError,
+        ) as e:
             raise StopAsyncIteration from e
 
 

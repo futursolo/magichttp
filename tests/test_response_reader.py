@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+#   Copyright 2020 Kaede Hoshikawa
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+
+import helpers
+import magicdict
+
+from magichttp import (
+    HttpRequestInitial,
+    HttpRequestMethod,
+    HttpRequestWriter,
+    HttpResponseInitial,
+    HttpResponseReader,
+    HttpStatusCode,
+    HttpVersion,
+)
+
+_INITIAL = HttpResponseInitial(
+    HttpStatusCode.OK,
+    version=HttpVersion.V1_1,
+    headers=magicdict.FrozenTolerantMagicDict(),
+)
+
+
+_REQ_INITIAL = HttpRequestInitial(
+    HttpRequestMethod.GET,
+    uri="/",
+    headers=magicdict.FrozenTolerantMagicDict(),
+    scheme="https",
+    version=HttpVersion.V1_1,
+    authority="www.example.com",
+)
+
+
+def test_init() -> None:
+    HttpResponseReader(
+        helpers.ReaderDelegateMock(),
+        initial=_INITIAL,
+        writer=HttpRequestWriter(
+            helpers.WriterDelegateMock(), initial=_REQ_INITIAL
+        ),
+    )
+
+
+def test_initial() -> None:
+    reader = HttpResponseReader(
+        helpers.ReaderDelegateMock(),
+        initial=_INITIAL,
+        writer=HttpRequestWriter(
+            helpers.WriterDelegateMock(), initial=_REQ_INITIAL
+        ),
+    )
+
+    assert _INITIAL is reader.initial
+
+
+def test_writer() -> None:
+    writer_mock = HttpRequestWriter(
+        helpers.WriterDelegateMock(), initial=_REQ_INITIAL
+    )
+
+    reader = HttpResponseReader(
+        helpers.ReaderDelegateMock(), writer=writer_mock, initial=_INITIAL
+    )
+
+    assert writer_mock is reader.writer

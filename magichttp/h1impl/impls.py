@@ -20,7 +20,7 @@ import abc
 import asyncio
 import typing
 
-from .. import protocols, readers, writers
+from .. import exceptions, protocols, readers, writers
 from . import stream_mgrs
 
 if typing.TYPE_CHECKING:
@@ -105,7 +105,7 @@ class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
 
         self._max_initial_size = max_initial_size
 
-        self._exc: Optional[readers.ReadAbortedError] = None
+        self._exc: Optional[exceptions.ReadAbortedError] = None
 
         self.__stream = stream_mgrs.H1ServerStreamManager(
             self, self._buf, max_initial_size
@@ -127,7 +127,7 @@ class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
                     if self._exc:
                         raise self._exc
 
-                    raise readers.ReadFinishedError
+                    raise exceptions.ReadFinishedError
 
                 self._resume_reading()
 
@@ -146,13 +146,13 @@ class H1ServerImpl(BaseH1Impl, protocols.HttpServerProtocolDelegate):
             return
 
         if __cause:
-            self._exc = readers.ReadAbortedError(
+            self._exc = exceptions.ReadAbortedError(
                 "Read aborted due to socket error."
             )
             self._exc.__cause__ = __cause
 
         else:
-            self._exc = readers.ReadAbortedError("Read aborted by user.")
+            self._exc = exceptions.ReadAbortedError("Read aborted by user.")
 
         self._stream._set_abort_error(__cause)
 
@@ -169,7 +169,7 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
         self._http_version = http_version
         self._max_initial_size = max_initial_size
 
-        self._exc: Optional[writers.WriteAbortedError] = None
+        self._exc: Optional[exceptions.WriteAbortedError] = None
 
         self.__stream = stream_mgrs.H1ClientStreamManager(
             self, self._buf, max_initial_size, http_version
@@ -199,7 +199,7 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
                     if self._exc:
                         raise self._exc
 
-                    raise writers.WriteAfterFinishedError
+                    raise exceptions.WriteAfterFinishedError
 
                 self.__stream = stream_mgrs.H1ClientStreamManager(
                     self, self._buf, self._max_initial_size, self._http_version
@@ -224,12 +224,12 @@ class H1ClientImpl(BaseH1Impl, protocols.HttpClientProtocolDelegate):
             return
 
         if __cause:
-            self._exc = writers.WriteAbortedError(
+            self._exc = exceptions.WriteAbortedError(
                 "Write aborted due to socket error."
             )
             self._exc.__cause__ = __cause
 
         else:
-            self._exc = writers.WriteAbortedError("Write aborted by user.")
+            self._exc = exceptions.WriteAbortedError("Write aborted by user.")
 
         self._stream._set_abort_error(__cause)

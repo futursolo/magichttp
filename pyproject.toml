@@ -29,6 +29,7 @@ importlib-metadata = { version = "^4.0.1", python = "<=3.7" }
 
 # Dictionary
 magicdict = "^1.0.6"
+sniffio = "^1.2.0"
 
 [tool.poetry.dev-dependencies]
 # Testing

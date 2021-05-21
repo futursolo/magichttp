@@ -15,7 +15,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-from test_helper import TestHelper
+import helpers
 import magicdict
 
 from magichttp import (
@@ -29,8 +29,6 @@ from magichttp.h1impl.composers import (
     compose_request_initial,
     compose_response_initial,
 )
-
-helper = TestHelper()
 
 
 def test_simple_request() -> None:
@@ -48,11 +46,11 @@ def test_simple_request() -> None:
     assert not hasattr(req, "authority")
     assert not hasattr(req, "scheme")
     assert req.headers == {
-        "user-agent": helper.get_version_str(),
+        "user-agent": helpers.get_version_str(),
         "accept": "*/*",
     }
 
-    helper.assert_initial_bytes(
+    helpers.assert_initial(
         req_bytes,
         b"GET / HTTP/1.1",
         b"User-Agent: %(self_ver_bytes)s",
@@ -75,13 +73,13 @@ def test_http_10_request() -> None:
     assert req.authority == "localhost"
     assert req.scheme == "http"
     assert req.headers == {
-        "user-agent": helper.get_version_str(),
+        "user-agent": helpers.get_version_str(),
         "connection": "Keep-Alive",
         "accept": "*/*",
         "host": "localhost",
     }
 
-    helper.assert_initial_bytes(
+    helpers.assert_initial(
         req_bytes,
         b"GET / HTTP/1.0",
         b"User-Agent: %(self_ver_bytes)s",
@@ -107,11 +105,11 @@ def test_simple_response() -> None:
 
     assert res.status_code == 200
     assert res.headers == {
-        "server": helper.get_version_str(),
+        "server": helpers.get_version_str(),
         "transfer-encoding": "Chunked",
     }
 
-    helper.assert_initial_bytes(
+    helpers.assert_initial(
         res_bytes,
         b"HTTP/1.1 200 OK",
         b"Server: %(self_ver_bytes)s",
@@ -126,12 +124,12 @@ def test_bad_request() -> None:
 
     assert res.status_code == 400
     assert res.headers == {
-        "server": helper.get_version_str(),
+        "server": helpers.get_version_str(),
         "connection": "Close",
         "transfer-encoding": "Chunked",
     }
 
-    helper.assert_initial_bytes(
+    helpers.assert_initial(
         res_bytes,
         b"HTTP/1.1 400 Bad Request",
         b"Server: %(self_ver_bytes)s",
@@ -156,11 +154,11 @@ def test_http_10() -> None:
 
     assert res.status_code == 200
     assert res.headers == {
-        "server": helper.get_version_str(),
+        "server": helpers.get_version_str(),
         "connection": "Close",
     }
 
-    helper.assert_initial_bytes(
+    helpers.assert_initial(
         res_bytes,
         b"HTTP/1.0 200 OK",
         b"Server: %(self_ver_bytes)s",
@@ -184,11 +182,11 @@ def test_keep_alive() -> None:
 
     assert res.status_code == 200
     assert res.headers == {
-        "server": helper.get_version_str(),
+        "server": helpers.get_version_str(),
         "transfer-encoding": "Chunked",
     }
 
-    helper.assert_initial_bytes(
+    helpers.assert_initial(
         res_bytes,
         b"HTTP/1.1 200 OK",
         b"Server: %(self_ver_bytes)s",
@@ -213,11 +211,11 @@ def test_http_10_keep_alive() -> None:
     assert res.status_code == 200
     assert res.headers == {
         "content-length": "0",
-        "server": helper.get_version_str(),
+        "server": helpers.get_version_str(),
         "connection": "Keep-Alive",
     }
 
-    helper.assert_initial_bytes(
+    helpers.assert_initial(
         res_bytes,
         b"HTTP/1.0 200 OK",
         b"Server: %(self_ver_bytes)s",
@@ -242,12 +240,12 @@ def test_no_keep_alive() -> None:
 
     assert res.status_code == 200
     assert res.headers == {
-        "server": helper.get_version_str(),
+        "server": helpers.get_version_str(),
         "connection": "Close",
         "transfer-encoding": "Chunked",
     }
 
-    helper.assert_initial_bytes(
+    helpers.assert_initial(
         res_bytes,
         b"HTTP/1.1 200 OK",
         b"Server: %(self_ver_bytes)s",
@@ -271,9 +269,9 @@ def test_204_keep_alive() -> None:
     )
 
     assert res.status_code == 204
-    assert res.headers == {"server": helper.get_version_str()}
+    assert res.headers == {"server": helpers.get_version_str()}
 
-    helper.assert_initial_bytes(
+    helpers.assert_initial(
         res_bytes,
         b"HTTP/1.1 204 No Content",
         b"Server: %(self_ver_bytes)s",
@@ -295,9 +293,9 @@ def test_304_keep_alive() -> None:
     )
 
     assert res.status_code == 304
-    assert res.headers == {"server": helper.get_version_str()}
+    assert res.headers == {"server": helpers.get_version_str()}
 
-    helper.assert_initial_bytes(
+    helpers.assert_initial(
         res_bytes,
         b"HTTP/1.1 304 Not Modified",
         b"Server: %(self_ver_bytes)s",
@@ -319,9 +317,9 @@ def test_head_keep_alive() -> None:
     )
 
     assert res.status_code == 200
-    assert res.headers == {"server": helper.get_version_str()}
+    assert res.headers == {"server": helpers.get_version_str()}
 
-    helper.assert_initial_bytes(
+    helpers.assert_initial(
         res_bytes, b"HTTP/1.1 200 OK", b"Server: %(self_ver_bytes)s"
     )
 

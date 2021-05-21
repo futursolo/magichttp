@@ -21,7 +21,7 @@ import asyncio
 import contextlib
 import typing
 
-from .. import constants, readers, writers
+from .. import constants, exceptions, readers, writers
 from . import composers, parsers
 
 if typing.TYPE_CHECKING:  # pragma: no cover
@@ -74,12 +74,12 @@ class BaseH1StreamManager(
         self._body_len: Optional[int] = None
         self._current_chunk_len: Optional[int] = None
         self._current_chunk_crlf_dropped = True
-        self._read_exc: Optional[readers.BaseReadException] = None
+        self._read_exc: Optional[exceptions.BaseReadException] = None
 
         self._writer_ready = asyncio.Event()
         self._write_chunked_body: Optional[bool] = None
         self._write_finished = False
-        self._write_exc: Optional[writers.BaseWriteException] = None
+        self._write_exc: Optional[exceptions.BaseWriteException] = None
 
         self._last_stream: Optional[bool] = None
 
@@ -141,7 +141,7 @@ class BaseH1StreamManager(
                 if self._current_chunk_len is None:
                     if len(self._buf) > self._max_initial_size:
                         self._set_read_exception(
-                            readers.EntityTooLargeError(
+                            exceptions.EntityTooLargeError(
                                 "Chunk size cannot be found "
                                 "before the initial size has been reached,"
                             )
@@ -210,7 +210,7 @@ class BaseH1StreamManager(
                 self._try_parse_body()
 
         except parsers.UnparsableHttpMessage as e:
-            exc = readers.ReceivedDataMalformedError()
+            exc = exceptions.ReceivedDataMalformedError()
             exc.__cause__ = e
 
             self._set_read_exception(exc)
@@ -228,7 +228,9 @@ class BaseH1StreamManager(
             return
 
         self._set_read_exception(
-            readers.ReadAbortedError("Eof received before the end is found.")
+            exceptions.ReadAbortedError(
+                "Eof received before the end is found."
+            )
         )
 
     def _read_finished(self) -> bool:
@@ -244,7 +246,7 @@ class BaseH1StreamManager(
         return self._read_finished() and self._write_finished
 
     async def _wait_finished(self) -> None:
-        with contextlib.suppress(readers.BaseReadException):
+        with contextlib.suppress(exceptions.BaseReadException):
             reader = await self._reader_fur.safe_await()
             await reader.wait_end()
 
@@ -265,7 +267,7 @@ class BaseH1StreamManager(
             if self._write_exc:
                 raise self._write_exc
 
-            raise writers.WriteAfterFinishedError
+            raise exceptions.WriteAfterFinishedError
 
         if self._write_chunked_body is None:
             raise RuntimeError(
@@ -279,7 +281,7 @@ class BaseH1StreamManager(
             self._transport.write(data)
 
         except Exception as e:
-            exc = writers.WriteAbortedError()
+            exc = exceptions.WriteAbortedError()
             exc.__cause__ = e
 
             self._set_write_exception(exc)
@@ -310,7 +312,7 @@ class BaseH1StreamManager(
 
         self._impl.abort()
 
-    def _set_read_exception(self, exc: readers.BaseReadException) -> None:
+    def _set_read_exception(self, exc: exceptions.BaseReadException) -> None:
         if self._read_finished():
             return
 
@@ -324,7 +326,7 @@ class BaseH1StreamManager(
 
         self._maybe_cleanup()
 
-    def _set_write_exception(self, exc: writers.BaseWriteException) -> None:
+    def _set_write_exception(self, exc: exceptions.BaseWriteException) -> None:
         if self._write_finished:
             return
 
@@ -340,19 +342,19 @@ class BaseH1StreamManager(
             return
 
         if __cause:
-            read_exc = readers.ReadAbortedError(
+            read_exc = exceptions.ReadAbortedError(
                 "Read aborted due to socket error."
             )
             read_exc.__cause__ = __cause
 
-            write_exc = writers.WriteAbortedError(
+            write_exc = exceptions.WriteAbortedError(
                 "Write aborted due to socket error."
             )
             write_exc.__cause__ = __cause
 
         else:
-            read_exc = readers.ReadAbortedError("Read aborted by user.")
-            write_exc = writers.WriteAbortedError("Write aborted by user.")
+            read_exc = exceptions.ReadAbortedError("Read aborted by user.")
+            write_exc = exceptions.WriteAbortedError("Write aborted by user.")
 
         self._set_read_exception(read_exc)
         self._set_write_exception(write_exc)
@@ -368,7 +370,7 @@ class BaseH1StreamManager(
 
         self._eof_received()
         self._set_write_exception(
-            writers.WriteAbortedError("Connnection closed.")
+            exceptions.WriteAbortedError("Connnection closed.")
         )
 
 
@@ -414,7 +416,7 @@ class H1ClientStreamManager(
             if len(self._buf) > self._max_initial_size:
                 self.pause_reading()
 
-                exc = readers.EntityTooLargeError()
+                exc = exceptions.EntityTooLargeError()
                 self._set_read_exception(exc)
 
             return
@@ -464,7 +466,7 @@ class H1ClientStreamManager(
             self._transport.write(initial_bytes)
 
         except Exception as e:
-            exc = writers.WriteAbortedError()
+            exc = exceptions.WriteAbortedError()
             exc.__cause__ = e
             self._set_write_exception(exc)
 
@@ -573,7 +575,7 @@ class H1ServerStreamManager(
             if len(self._buf) > self._max_initial_size:
                 self.pause_reading()
 
-                self._set_read_exception(readers.EntityTooLargeError())
+                self._set_read_exception(exceptions.EntityTooLargeError())
 
             return
 
@@ -586,11 +588,11 @@ class H1ServerStreamManager(
         try:
             return await self._reader_fur.safe_await()
 
-        except readers.EntityTooLargeError as e:
-            raise readers.RequestInitialTooLargeError(self) from e
+        except exceptions.EntityTooLargeError as e:
+            raise exceptions.RequestInitialTooLargeError(self) from e
 
-        except readers.ReceivedDataMalformedError as e:
-            raise readers.RequestInitialMalformedError(self) from e
+        except exceptions.ReceivedDataMalformedError as e:
+            raise exceptions.RequestInitialMalformedError(self) from e
 
     def write_response(
         self,
@@ -632,7 +634,7 @@ class H1ServerStreamManager(
             self._transport.write(initial_bytes)
 
         except Exception as e:
-            exc = writers.WriteAbortedError()
+            exc = exceptions.WriteAbortedError()
             exc.__cause__ = e
             self._set_write_exception(exc)
 
