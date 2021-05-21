@@ -24,7 +24,7 @@ classifiers=[
 include=["magichttp/py.typed"]
 
 [tool.poetry.dependencies]
-python = "^3.6.1"
+python = "^3.7.0"
 importlib-metadata = { version = "^4.0.1", python = "<=3.7" }
 
 # Dictionary
@@ -101,7 +101,7 @@ line_length = 79
 
 [tool.black]
 line-length = 79
-target-version = ['py36']
+target-version = ['py37']
 
 [tool.pytest.ini_options]
 minversion = "6.0"
