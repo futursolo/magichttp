@@ -109,3 +109,11 @@ testpaths = "tests/"
 python_files = "test_*.py"
 python_functions = "test_*"
 python_classes = "*TestCase"
+
+[tool.coverage]
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+]

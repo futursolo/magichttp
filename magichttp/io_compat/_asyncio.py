@@ -16,15 +16,26 @@
 #   limitations under the License.
 
 from collections import deque
-from typing import Any, Coroutine, Deque, Optional, TypeVar, Union
+from typing import (  # Awaitable,
+    Any,
+    Coroutine,
+    Deque,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+)
 import asyncio
+import contextlib
 import socket
 import ssl
-import typing
 
-from .abc import AbstractIo, AbstractSocket, AbstractTask
+from ._abc import AbstractIo, AbstractSocket, AbstractTask
 
 _T = TypeVar("_T")
+
+_SOCKET_INFO = Union[Tuple[str, int, int, int], Tuple[str, int]]
 
 
 class SocketProtocol(asyncio.Protocol):
@@ -45,14 +56,13 @@ class SocketProtocol(asyncio.Protocol):
 
     def __init__(self) -> None:
         self._chunks: Deque[bytes] = deque()
-        self._connected = asyncio.Event()
-
         self._data_ready = asyncio.Event()
-
-        self._read_lock = asyncio.Lock()
 
         self._data_flushed = asyncio.Event()
         self._data_flushed.set()
+
+        self._connected = asyncio.Event()
+        self._read_lock = asyncio.Lock()
         self._write_lock = asyncio.Lock()
 
         self._eof = False
@@ -69,7 +79,7 @@ class SocketProtocol(asyncio.Protocol):
         self._chunks.append(data)
         self._data_ready.set()
 
-        if len(self._chunks) >= 16 and self._transport.is_reading():
+        if len(self._chunks) >= 4 and self._transport.is_reading():
             self._transport.pause_reading()
 
     def pause_writing(self) -> None:
@@ -80,6 +90,7 @@ class SocketProtocol(asyncio.Protocol):
 
     def eof_received(self) -> Optional[bool]:
         self._eof = True
+        self._data_ready.set()
         return (
             True
             if self._transport.get_extra_info("sslcontext") is None
@@ -97,10 +108,10 @@ class SocketProtocol(asyncio.Protocol):
         async with self._read_lock:
             while not self._chunks:
                 if self._eof or self._closed.is_set():
-                    raise EOFError
+                    if self._exc:
+                        raise self._exc
 
-                if self._exc:
-                    raise self._exc
+                    raise EOFError
 
                 if not self._transport.is_reading():
                     self._transport.resume_reading()
@@ -160,7 +171,7 @@ class Socket(AbstractSocket):
         self._socket_ready.set()
         return proto
 
-    async def recv(self) -> bytes:
+    async def recv(self, n: int) -> bytes:
         if self._proto:
             return await self._proto.recv()
 
@@ -280,18 +291,73 @@ class Socket(AbstractSocket):
             await sock._proto._connected.wait()
             return sock
 
-    def get_raw_socket(self) -> Optional[socket.socket]:
+    def sockname(self) -> Optional[_SOCKET_INFO]:
         """
-        Will only return connected / accepted sockets.
-        Will not return socket on listend sockets.
+        Return the socket's local address.
+
+        For listened sockets, it will return the first address.
         """
-        if self._proto:
-            return typing.cast(
-                Optional[socket.socket],
-                self._proto._transport.get_extra_info("socket"),
+        if self._srv:
+            try:
+                return self.bound_socknames()[0]
+
+            except IndexError:
+                return None
+
+        assert self._proto, "Socket can either be listened or has a protocol."
+        return self._proto._transport.get_extra_info(  # type: ignore
+            "sockname"
+        )
+
+    def bound_socknames(self) -> List[_SOCKET_INFO]:
+        """
+        Return all the local names.
+
+        Depending on the I/O library, sometimes the 'Socket' will be able to
+        listen to multiple sockets. This method can be used to return all the
+        socknames it is bound to.
+        """
+        if not self._srv:
+            raise RuntimeError(
+                "You can only use this method on listened sockets."
             )
 
-        return None
+        if not self._srv.sockets:
+            return []
+
+        return [
+            sock.getsockname()
+            for sock in self._srv.sockets
+            if sock.getsockname()
+        ]
+
+    def peername(self) -> Optional[_SOCKET_INFO]:
+        """
+        Return the remote address the socket is connected to.
+        """
+        if not self._proto:
+            return None
+
+        return self._proto._transport.get_extra_info(  # type: ignore
+            "sockname"
+        )
+
+    def tls_ctx(self) -> Optional[ssl.SSLContext]:
+        """
+        Return the tls context (if any).
+        """
+        if not self._proto:
+            return None
+
+        return self._proto._transport.get_extra_info(  # type: ignore
+            "sslcontext"
+        )
+
+    def tls_obj(self) -> Optional[ssl.SSLObject]:
+        """
+        Return an instance of the `ssl.SSLObject` (if any).
+        """
+        raise NotImplementedError
 
 
 class Task(AbstractTask[_T]):
@@ -300,8 +366,15 @@ class Task(AbstractTask[_T]):
     def __init__(self, tsk: "asyncio.Task[_T]") -> None:
         self._tsk = tsk
 
-    async def cancel(self) -> None:
+    async def cancel(self, wait: bool = False) -> None:
         self._tsk.cancel()
+
+        if wait:
+            with contextlib.suppress(Exception, asyncio.CancelledError):
+                await self._tsk
+
+    def cancelled(self) -> bool:
+        return self._tsk.cancelled()
 
 
 class AsyncIo(AbstractIo):
@@ -317,6 +390,9 @@ class AsyncIo(AbstractIo):
     Socket = Socket
 
     CancelledError = asyncio.CancelledError
+
+    # async def shield(self, tsk: Awaitable[_T]) -> _T:
+    #     return await asyncio.shield(tsk)
 
 
 io = AsyncIo()

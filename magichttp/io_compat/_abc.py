@@ -21,7 +21,9 @@ from typing import (
     Awaitable,
     Coroutine,
     Generic,
+    List,
     Optional,
+    Tuple,
     Type,
     TypeVar,
     Union,
@@ -33,6 +35,8 @@ import ssl
 from typing_extensions import Protocol
 
 _T = TypeVar("_T")
+
+_SOCKET_INFO = Union[Tuple[str, int, int, int], Tuple[str, int]]
 
 
 class AbstractLock(Protocol):
@@ -71,11 +75,20 @@ class AbstractSocket(abc.ABC):
     """
 
     @abc.abstractmethod
-    async def recv(self) -> bytes:
+    async def recv(self, n: int) -> bytes:
+        """
+        Receive some data.
+
+        :arg n: The size hint of data. If it is more performant to return
+            more data, it may do so.
+        """
         raise NotImplementedError
 
     @abc.abstractmethod
     async def send_all(self, buf: Union[bytes, bytearray, memoryview]) -> None:
+        """
+        Send all of the bytes.
+        """
         raise NotImplementedError
 
     @classmethod
@@ -123,17 +136,55 @@ class AbstractSocket(abc.ABC):
     async def close(self) -> None:
         raise NotImplementedError
 
-    def get_raw_socket(self) -> Optional[socket.socket]:
+    @abc.abstractmethod
+    def sockname(self) -> Optional[_SOCKET_INFO]:
         """
-        Return raw socket object. You should only use this with
-        getpeername and getsockname.
+        Return the socket's local address.
+
+        For listened sockets, it will return the first address.
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def bound_socknames(self) -> List[_SOCKET_INFO]:
+        """
+        Return all the local names.
+
+        Depending on the I/O library, sometimes the 'Socket' will be able to
+        listen to multiple sockets. This method can be used to return all the
+        socknames it is bound to.
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def peername(self) -> Optional[_SOCKET_INFO]:
+        """
+        Return the remote address the socket is connected to.
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def tls_ctx(self) -> Optional[ssl.SSLContext]:
+        """
+        Return the tls context (if any).
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def tls_obj(self) -> Optional[Union[ssl.SSLObject, ssl.SSLSocket]]:
+        """
+        Return an instance of the `ssl.SSLObject` or `ssl.SSLSocket` (if any).
         """
         raise NotImplementedError
 
 
 class AbstractTask(Generic[_T]):
     @abc.abstractmethod
-    async def cancel(self) -> None:
+    async def cancel(self, wait: bool = False) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def cancelled(self) -> bool:
         raise NotImplementedError
 
 
@@ -165,3 +216,16 @@ class AbstractIo(abc.ABC):
         self, coro: Coroutine[Any, Any, _T]
     ) -> AbstractTask[_T]:
         raise NotImplementedError
+
+    # @abc.abstractmethod
+    # async def shield(self, tsk: Awaitable[_T]) -> _T:
+    #     raise NotImplementedError
+
+
+__all__ = [
+    "AbstractIo",
+    "AbstractTask",
+    "AbstractSocket",
+    "AbstractEvent",
+    "AbstractLock",
+]

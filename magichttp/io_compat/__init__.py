@@ -15,17 +15,21 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+import abc
+
 import sniffio
 
-from .abc import AbstractIo, AbstractTask
-from .asyncio import AsyncIo
+from ._abc import AbstractIo, AbstractSocket, AbstractTask
+from ._asyncio import AsyncIo
+
+_asyncio = AsyncIo()
 
 
 def get_io() -> AbstractIo:
     io_name = sniffio.current_async_library()
 
     if io_name == "asyncio":
-        return AsyncIo()
+        return _asyncio
 
     elif io_name == "curio":
         raise NotImplementedError
@@ -37,4 +41,15 @@ def get_io() -> AbstractIo:
         raise RuntimeError(f"Unsupported IO: {io_name}")
 
 
-__all__ = ["AsyncIo", "AbstractIo", "AbstractTask"]
+class WithIo(abc.ABC):
+    @property
+    def _io(self) -> AbstractIo:
+        """
+        Bridge of I/O Libraries.
+
+        MUST be used in an async context.
+        """
+        return get_io()
+
+
+__all__ = ["WithIo", "AbstractIo", "AbstractTask", "AbstractSocket"]

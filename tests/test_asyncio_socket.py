@@ -21,7 +21,7 @@ import os
 import helpers
 import pytest
 
-from magichttp.io_compat.asyncio import Socket
+from magichttp.io_compat._asyncio import Socket
 
 _BIG_SIZE = 1024 * 1024  # 1M
 
@@ -53,14 +53,14 @@ async def test_connect(mocked_server: helpers.MockedServer) -> None:
 
     buf = bytearray()
     while len(buf) < _BIG_SIZE:
-        buf.extend(await sock.recv())
+        buf.extend(await sock.recv(4096))
 
     assert recv_data == buf
 
     await sock.close()
 
     with pytest.raises(EOFError):
-        await sock.recv()
+        await sock.recv(4096)
 
 
 @pytest.mark.asyncio
@@ -87,13 +87,13 @@ async def test_listen() -> None:
         await bind_sock.send_all(b"")
 
     with pytest.raises(OSError):
-        await bind_sock.recv()
+        await bind_sock.recv(4096)
 
     sock = await bind_sock.accept()
 
     buf = bytearray()
     while len(buf) < _BIG_SIZE:
-        buf.extend(await sock.recv())
+        buf.extend(await sock.recv(4096))
     assert recv_data == buf
 
     send_data = os.urandom(_BIG_SIZE)
