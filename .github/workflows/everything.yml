@@ -26,7 +26,7 @@ jobs:
         run: |
           pip install wheel
           pip install --upgrade pip
-          pip install --upgrade poetry coveralls poetry-dynamic-versioning
+          pip install --upgrade poetry coveralls toml poetry-dynamic-versioning
           poetry install
 
       - name: Mypy
