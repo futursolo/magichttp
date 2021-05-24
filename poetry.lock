@@ -380,7 +380,7 @@ dev = ["pre-commit", "tox"]
 
 [[package]]
 name = "poetry-dynamic-versioning"
-version = "0.12.6"
+version = "0.12.7"
 description = "Plugin for Poetry to enable dynamic versioning based on VCS tags"
 category = "dev"
 optional = false
@@ -542,7 +542,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=1.2.3)", "pytest-flake8", "pyt
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.6.1"
-content-hash = "486ed3b0b9cd05b43a46acbde1a221b1e4cfc96e2137e70ed490f224cd979ff5"
+content-hash = "ca4052a9c9f2659afb9e5eaba03a7872c18b476b72d83737f296c21ec20c6939"
 
 [metadata.files]
 appdirs = [
@@ -644,6 +644,7 @@ flake8-2020 = [
 ]
 flake8-black = [
     {file = "flake8-black-0.2.1.tar.gz", hash = "sha256:f26651bc10db786c03f4093414f7c9ea982ed8a244cec323c984feeffdf4c118"},
+    {file = "flake8_black-0.2.1-py3-none-any.whl", hash = "sha256:941514149cb8b489cb17a4bb1cf18d84375db3b34381bb018de83509437931a0"},
 ]
 flake8-bugbear = [
     {file = "flake8-bugbear-21.4.3.tar.gz", hash = "sha256:2346c81f889955b39e4a368eb7d508de723d9de05716c287dc860a4073dc57e7"},
@@ -774,8 +775,8 @@ pluggy = [
     {file = "pluggy-0.13.1.tar.gz", hash = "sha256:15b2acde666561e1298d71b523007ed7364de07029219b604cf808bfa1c765b0"},
 ]
 poetry-dynamic-versioning = [
-    {file = "poetry-dynamic-versioning-0.12.6.tar.gz", hash = "sha256:95e015d58bb490e138480fde131a2a9ab7ee287e467d3006378c4e217f067a6d"},
-    {file = "poetry_dynamic_versioning-0.12.6-py3-none-any.whl", hash = "sha256:8f83d298a35c9ae428d98bbb6f19ed702a7e12c7a0a923c1c07d37e5a610044e"},
+    {file = "poetry-dynamic-versioning-0.12.7.tar.gz", hash = "sha256:99953c3f3403a8946a61ac3bd3d12e987c52b7f8d72bcd52c5aab471d91159fa"},
+    {file = "poetry_dynamic_versioning-0.12.7-py3-none-any.whl", hash = "sha256:bc7212f05c4b9ea398d616ea0d3f0aa433710edeb474770886e69bec7ddf3226"},
 ]
 py = [
     {file = "py-1.10.0-py2.py3-none-any.whl", hash = "sha256:3b80836aa6d1feeaa108e046da6423ab8f6ceda6468545ae8d02d9d58d18818a"},
