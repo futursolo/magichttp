@@ -18,6 +18,7 @@
 from collections import deque
 from typing import Deque, Optional
 import abc
+import contextlib
 
 from .. import exceptions, io_compat
 from ._abc import AbstractStreamReader, AbstractStreamWriter
@@ -74,6 +75,7 @@ class BaseStreamReader(AbstractStreamReader):
         When this method is called. self._read_data should not be awaiting /
         already cancelled.
         """
+        raise NotImplementedError
 
     async def _read_until_end(self) -> None:
         """
@@ -90,7 +92,7 @@ class BaseStreamReader(AbstractStreamReader):
                 self.__buf_len += len(data)
                 self.__buf.append(data)
 
-                if len(self) >= self.__max_buf_len:
+                if len(self) > self.max_buf_len:
                     self.__should_read.clear()
 
             except self._io.CancelledError:
@@ -130,6 +132,13 @@ class BaseStreamReader(AbstractStreamReader):
 
         self.__read_loop = await self._io.create_task(self._read_until_end())
 
+    async def _wait_read_loop(self) -> None:
+        with contextlib.suppress(BaseException):
+            if not self.__read_loop:
+                raise RuntimeError("Read loop is not spawned.")
+
+            await self.__read_loop
+
     def __len__(self) -> int:
         return self.__buf_len
 
@@ -146,7 +155,7 @@ class BaseStreamReader(AbstractStreamReader):
         Set a new current maximum buffer length.
         """
         self.__max_buf_len = max_buf_len
-        if self.__buf_len < self.__max_buf_len:
+        if self.__buf_len <= self.__max_buf_len:
             self.__should_read.set()
 
     def _raise_exc_if_finished(self) -> None:
@@ -159,11 +168,11 @@ class BaseStreamReader(AbstractStreamReader):
         raise exceptions.ReadFinishedError
 
     def _raise_exc_if_end_appended(self) -> None:
-        if not self.__end_received:
-            return
-
         if self.__exc:
             raise self.__exc
+
+        if not self.__end_received:
+            return
 
         raise exceptions.ReadFinishedError
 
@@ -223,20 +232,25 @@ class BaseStreamReader(AbstractStreamReader):
                         raise
 
                     except Exception:
-                        data = b"".join(self.__buf)
-                        self.__buf = deque()
-                        self.__buf_len = 0
+                        if self.__buf:
+                            data = b"".join(self.__buf)
+                            self.__buf = deque()
+                            self.__buf_len = 0
 
-                        # Shouldn't be able to continue reading anyways,
-                        # Calling to be consistent.
-                        self._maybe_continue_reading()
-                        return data
+                            # Shouldn't be able to continue reading anyways,
+                            # Calling to be consistent.
+                            self._maybe_continue_reading()
+                            return data
+
+                        raise
 
             elif len(self) == 0:
                 self._raise_exc_if_end_appended()
 
                 self.__data_ready.clear()
                 await self.__data_ready.wait()
+
+            self._raise_exc_if_finished()
 
             data = self.__buf.popleft()
 
@@ -394,13 +408,14 @@ class BaseStreamWriter(AbstractStreamWriter):
                     await self.__should_write.wait()
 
                 self.__data_flushed.clear()
+                if self.__buf:
+                    data = self.__buf.popleft()
+                    await self._write_data(data)
+
                 if self.__finished:
                     await self._finish_writing()
                     self.__should_write.clear()
                     return
-
-                data = self.__buf.popleft()
-                await self._write_data(data)
 
             except self._io.CancelledError:
                 self.__exc = exceptions.WriteAbortedError(
@@ -426,6 +441,13 @@ class BaseStreamWriter(AbstractStreamWriter):
             self._write_until_finish()
         )
 
+    async def _wait_write_loop(self) -> None:
+        with contextlib.suppress(BaseException):
+            if not self.__write_loop:
+                raise RuntimeError("Write loop is not spawned.")
+
+            await self.__write_loop
+
     def write(self, data: bytes) -> None:
         if self.__exc:
             raise self.__exc
@@ -440,6 +462,7 @@ class BaseStreamWriter(AbstractStreamWriter):
         if self.__exc:
             raise self.__exc
 
+        self.__should_write.set()
         self.__finished = True
 
     async def flush(self) -> None:
@@ -469,4 +492,4 @@ class BaseStreamWriter(AbstractStreamWriter):
             if self.__write_loop.cancelled():
                 return
 
-            await self.__write_loop.cancel()
+            await self.__write_loop.cancel(wait=True)

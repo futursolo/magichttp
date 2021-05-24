@@ -20,6 +20,7 @@ from typing import (
     Any,
     Awaitable,
     Coroutine,
+    Generator,
     Generic,
     List,
     Optional,
@@ -178,13 +179,21 @@ class AbstractSocket(abc.ABC):
         raise NotImplementedError
 
 
-class AbstractTask(Generic[_T]):
+class AbstractTask(Awaitable[_T], Generic[_T]):
     @abc.abstractmethod
     async def cancel(self, wait: bool = False) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
     def cancelled(self) -> bool:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def result(self) -> _T:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def __await__(self) -> Generator[Any, None, _T]:
         raise NotImplementedError
 
 
@@ -215,6 +224,10 @@ class AbstractIo(abc.ABC):
     async def create_task(
         self, coro: Coroutine[Any, Any, _T]
     ) -> AbstractTask[_T]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def sleep(self, timeout: float) -> None:
         raise NotImplementedError
 
     # @abc.abstractmethod

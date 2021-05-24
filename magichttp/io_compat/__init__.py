@@ -42,6 +42,8 @@ def get_io() -> AbstractIo:
 
 
 class WithIo(abc.ABC):
+    _cached_io: AbstractIo
+
     @property
     def _io(self) -> AbstractIo:
         """
@@ -49,7 +51,10 @@ class WithIo(abc.ABC):
 
         MUST be used in an async context.
         """
-        return get_io()
+        if not hasattr(self, "_cached_io"):
+            self._cached_io = get_io()
+
+        return self._cached_io
 
 
 __all__ = ["WithIo", "AbstractIo", "AbstractTask", "AbstractSocket"]

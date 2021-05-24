@@ -286,14 +286,25 @@ class MockedServer:
             self._srv.close()
             await self._srv.wait_closed()
 
-    def select_proto(self) -> BaseMockProtocol:
+    def select_proto(self, allow_empty: bool = False) -> BaseMockProtocol:
         """Selects the first non-empty protocol."""
 
         for proto in self.mock_protos:
-            if b"".join(proto.data_chunks):
+            if allow_empty or b"".join(proto.data_chunks):
                 return proto
 
         raise RuntimeError("There's no available protocol.")
+
+    async def await_proto(self, allow_empty: bool = False) -> BaseMockProtocol:
+        while True:
+            await asyncio.sleep(0.001)
+
+            with contextlib.suppress(RuntimeError):
+                proto = self.select_proto(allow_empty)
+                if proto.transport is None:
+                    continue
+
+                return proto
 
 
 class MockedUnixServer(MockedServer):

@@ -20,7 +20,7 @@ import typing
 if typing.TYPE_CHECKING:  # pragma: no cover
     import importlib.metadata as importlib_metadata
 
-else:
+else:  # pragma: no cover
     try:
         import importlib.metadata as importlib_metadata
 

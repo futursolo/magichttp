@@ -20,6 +20,7 @@ from typing import (  # Awaitable,
     Any,
     Coroutine,
     Deque,
+    Generator,
     List,
     Optional,
     Tuple,
@@ -376,6 +377,12 @@ class Task(AbstractTask[_T]):
     def cancelled(self) -> bool:
         return self._tsk.cancelled()
 
+    def result(self) -> _T:
+        return self._tsk.result()
+
+    def __await__(self) -> Generator[Any, None, _T]:
+        return self._tsk.__await__()
+
 
 class AsyncIo(AbstractIo):
     def create_lock(self) -> asyncio.Lock:
@@ -386,6 +393,9 @@ class AsyncIo(AbstractIo):
 
     async def create_task(self, coro: Coroutine[Any, Any, _T]) -> Task[_T]:
         return Task(asyncio.create_task(coro))
+
+    async def sleep(self, timeout: float) -> None:
+        await asyncio.sleep(timeout)
 
     Socket = Socket
 

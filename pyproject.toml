@@ -110,9 +110,10 @@ python_files = "test_*.py"
 python_functions = "test_*"
 python_classes = "*TestCase"
 
-[tool.coverage]
+[tool.coverage.report]
 exclude_lines = [
   "pragma: no cover",
+  "if typing.TYPE_CHECKING:",
   "def __repr__",
   "raise NotImplementedError",
   "if __name__ == .__main__.:",
