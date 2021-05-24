@@ -30,7 +30,102 @@ from magichttp import (
 )
 from magichttp.streams import TcpStream
 
-_BIG_SIZE = 1024 * 1024
+_BIG_SIZE = 1024 * 1024  # 1M
+
+"""
+_VERY_BIG_SIZE = 100 * 1024 * 1024  # 100M
+
+_BENCH_DATA = os.urandom(_VERY_BIG_SIZE)
+
+
+@pytest.mark.asyncio
+async def test_tcp_stream_benchmark(
+    mocked_server: helpers.MockedServer,
+) -> None:
+    stream = await TcpStream.connect("localhost", port=mocked_server.port)
+
+    send_data = _BENCH_DATA
+    stream.write(send_data)
+    stream.finish()
+
+    proto = await mocked_server.await_proto()
+    assert proto.transport
+
+    read_buf = bytearray()
+
+    while True:
+        await stream._io.sleep(0.01)
+        read_buf.extend(b"".join(proto.data_chunks))
+        proto.data_chunks.clear()
+        if len(read_buf) == _VERY_BIG_SIZE:
+            break
+
+    assert send_data == read_buf
+
+    recv_data = _BENCH_DATA
+    assert proto.transport is not None
+    proto.transport.write(recv_data)
+    proto.transport.close()
+
+    buf = bytearray()
+
+    with pytest.raises(ReadFinishedError):
+        while True:
+            chunk = await stream.read(4096)
+            assert len(chunk) <= 4096
+            buf.extend(chunk)
+
+    assert recv_data == buf
+
+    await stream.close()
+
+
+@pytest.mark.asyncio
+async def test_asyncio_stream_benchmark(
+    mocked_server: helpers.MockedServer,
+) -> None:
+    reader, writer = await asyncio.open_connection(
+        "localhost", port=mocked_server.port
+    )
+
+    send_data = _BENCH_DATA
+    writer.write(send_data)
+    writer.write_eof()
+
+    proto = await mocked_server.await_proto()
+    assert proto.transport
+
+    read_buf = bytearray()
+
+    while True:
+        await asyncio.sleep(0.01)
+        read_buf.extend(b"".join(proto.data_chunks))
+        proto.data_chunks.clear()
+        if len(read_buf) == _VERY_BIG_SIZE:
+            break
+
+    assert send_data == read_buf
+
+    recv_data = _BENCH_DATA
+    assert proto.transport is not None
+    proto.transport.write(recv_data)
+    proto.transport.close()
+
+    buf = bytearray()
+
+    while True:
+        chunk = await reader.read(4096)
+        if not chunk:
+            break
+        assert len(chunk) <= 4096
+        buf.extend(chunk)
+
+    assert recv_data == buf
+
+    writer.close()
+
+    await writer.wait_closed()
+"""
 
 
 @pytest.mark.asyncio
@@ -353,7 +448,8 @@ async def test_abort(
     assert stream._BaseStreamReader__exc is None  # type: ignore
 
     await stream.abort()
-    assert stream.closed() is True
-
     with pytest.raises(ReadAbortedError):
         await stream.read()
+
+    await stream.close()
+    assert stream.closed() is True

@@ -23,6 +23,14 @@ import pytest
 
 
 @pytest.fixture
+def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
+    loop = asyncio.new_event_loop()
+    # loop.set_debug(True)
+    yield loop
+    loop.close()
+
+
+@pytest.fixture
 def mocked_server(
     event_loop: asyncio.AbstractEventLoop,
 ) -> Generator[helpers.MockedServer, None, None]:

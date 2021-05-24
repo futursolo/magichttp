@@ -133,10 +133,10 @@ class BaseStreamReader(AbstractStreamReader):
         self.__read_loop = await self._io.create_task(self._read_until_end())
 
     async def _wait_read_loop(self) -> None:
-        with contextlib.suppress(BaseException):
-            if not self.__read_loop:
-                raise RuntimeError("Read loop is not spawned.")
+        if not self.__read_loop:
+            raise RuntimeError("Read loop is not spawned.")
 
+        with contextlib.suppress(self._io.CancelledError):
             await self.__read_loop
 
     def __len__(self) -> int:
@@ -331,10 +331,8 @@ class BaseStreamReader(AbstractStreamReader):
 
     def end_reached(self) -> bool:
         return (
-            self.__end_received
-            or self.__exc is not None
-            and self.__buf_len == 0
-        )
+            self.__end_received or self.__exc is not None
+        ) and self.__buf_len == 0
 
     async def abort(self) -> None:
         if self.__read_loop:
@@ -423,6 +421,8 @@ class BaseStreamWriter(AbstractStreamWriter):
                 )
                 await self._abort_stream()
 
+                raise
+
             finally:
                 self.__data_flushed.set()
 
@@ -442,10 +442,10 @@ class BaseStreamWriter(AbstractStreamWriter):
         )
 
     async def _wait_write_loop(self) -> None:
-        with contextlib.suppress(BaseException):
-            if not self.__write_loop:
-                raise RuntimeError("Write loop is not spawned.")
+        if not self.__write_loop:
+            raise RuntimeError("Write loop is not spawned.")
 
+        with contextlib.suppress(self._io.CancelledError):
             await self.__write_loop
 
     def write(self, data: bytes) -> None:

@@ -47,15 +47,17 @@ class SocketConnector(
 ):
     def __init__(self) -> None:
         self._stream: Optional[_TStream] = None
+        self._await_lock = io_compat.get_io().create_lock()
 
     async def _create_stream(self) -> _TStream:
         raise NotImplementedError
 
     def __await__(self) -> Generator[Any, None, _TStream]:
         async def impl() -> _TStream:
-            if self._stream is None:
-                self._stream = await self._create_stream()
-            return self._stream
+            async with self._await_lock:
+                if self._stream is None:
+                    self._stream = await self._create_stream()
+                return self._stream
 
         return impl().__await__()
 
@@ -69,10 +71,8 @@ class SocketConnector(
         exc: Optional[BaseException],
         tb: Optional[TracebackType],
     ) -> None:
-        if self._stream:
-            return await self._stream.__aexit__(exc_cls, exc, tb)
-
-        return
+        if self._stream is not None:
+            await self._stream.__aexit__(exc_cls, exc, tb)
 
 
 class SocketStream(
@@ -101,10 +101,6 @@ class SocketStream(
 
     async def _abort_stream(self) -> None:
         await self._sock.close()
-        await self.close()
-
-    async def _close_stream(self) -> None:
-        await self.close()
 
     async def _write_data(self, data: bytes) -> None:
         try:
@@ -129,13 +125,13 @@ class SocketStream(
         Close the socket.
         """
         async with self._close_lock:
-            if self._closed:
-                return
+            if not self._closed:
 
-            self._closed = True
-            await self._sock.close()
+                self._closed = True
+                await self._sock.close()
 
-            self.finish()
+                with contextlib.suppress(Exception):
+                    self.finish()
 
             await self._wait_read_loop()
             await self._wait_write_loop()
@@ -171,8 +167,7 @@ class SocketStream(
         exc: Optional[BaseException],
         tb: Optional[TracebackType],
     ) -> None:
-        if not self.closed():
-            await self.close()
+        await self.close()
 
 
 class TcpStream(SocketStream):
