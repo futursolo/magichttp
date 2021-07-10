@@ -338,7 +338,8 @@ class BaseHttpStreamReader(abc.ABC):
                         raise
 
                     except Exception as e:
-                        raise ReadUnsatisfiableError from e
+                        if len(self) < n:
+                            raise ReadUnsatisfiableError from e
 
             elif n < 0:
                 while True:
@@ -358,7 +359,15 @@ class BaseHttpStreamReader(abc.ABC):
                         return data
 
             elif len(self) == 0:
-                await self._wait_for_data()
+                try:
+                    await self._wait_for_data()
+
+                except asyncio.CancelledError:  # pragma: no cover
+                    raise
+
+                except Exception:
+                    if len(self) == 0:
+                        raise
 
             data = bytes(self._buf[0:n])
             del self._buf[0:n]
@@ -394,6 +403,7 @@ class BaseHttpStreamReader(abc.ABC):
                 if len(self) > self.max_buf_len:
                     raise MaxBufferLengthReachedError
 
+                before_wait_buf_len = len(self)
                 try:
                     await self._wait_for_data()
 
@@ -401,6 +411,10 @@ class BaseHttpStreamReader(abc.ABC):
                     raise
 
                 except Exception as e:
+                    if len(self) != before_wait_buf_len:
+                        # There're some more data to be checked.
+                        continue
+
                     if len(self) > 0:
                         raise SeparatorNotFoundError from e
 
