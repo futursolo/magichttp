@@ -127,9 +127,12 @@ class SocketProtocol(asyncio.Protocol):
             if self._exc:
                 raise self._exc
 
+            if self._closed.is_set():
+                raise OSError("You cannot send after socket has closed.")
+
             self._transport.write(buf)
 
-            await asyncio.sleep(0)
+            await asyncio.sleep(0)  # Give a chance to detect buffer status.
             await self._data_flushed.wait()
 
     async def close(self) -> None:

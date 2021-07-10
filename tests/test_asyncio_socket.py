@@ -102,3 +102,40 @@ async def test_listen() -> None:
     await sock.close()
     await bind_sock.close()
     await tsk
+
+    with pytest.raises(OSError):
+        await bind_sock.accept()
+
+
+@pytest.mark.asyncio
+async def test_connect_close(mocked_server: helpers.MockedServer) -> None:
+    sock = await Socket.connect("localhost", mocked_server.port)
+    await sock.close()
+
+    with pytest.raises(EOFError):
+        await sock.recv(4096)
+
+    with pytest.raises(OSError):
+        await sock.send_all(b"1234567890")
+
+
+@pytest.mark.asyncio
+async def test_connect_close_remote(
+    mocked_server: helpers.MockedServer,
+) -> None:
+    sock = await Socket.connect("localhost", mocked_server.port)
+    proto = await mocked_server.await_proto(allow_empty=True)
+    assert proto.transport
+    proto.transport.close()
+
+    with pytest.raises(EOFError):
+        await sock.recv(4096)
+
+    # When socket is closed by peer, sometimes we simply do not have a good way
+    # to tell when it happens.
+    """
+    await sock._proto._closed.wait()
+
+    with pytest.raises(OSError):
+        await sock.send_all(b"1234567890")
+    """
