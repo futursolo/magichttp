@@ -124,7 +124,7 @@ pyflakes = ">=2.3.0,<2.4.0"
 
 [[package]]
 name = "flake8-2020"
-version = "1.6.0"
+version = "1.6.1"
 description = "flake8 plugin which checks for misuse of `sys.version` or `sys.version_info`"
 category = "dev"
 optional = false
@@ -556,7 +556,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=1.2.3)", "pytest-flake8", "pyt
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.6.1"
-content-hash = "c2a4bda03343284c41233a74655ed6e1ec6fb8999a60693e4f56780c9c60ba03"
+content-hash = "c61d5eb32ab71a487f0ddbe6247193c56442b3062db1f13a1cf0f0f8a32cff4c"
 
 [metadata.files]
 appdirs = [
@@ -648,8 +648,8 @@ flake8 = [
     {file = "flake8-3.9.2.tar.gz", hash = "sha256:07528381786f2a6237b061f6e96610a4167b226cb926e2aa2b6b1d78057c576b"},
 ]
 flake8-2020 = [
-    {file = "flake8_2020-1.6.0-py2.py3-none-any.whl", hash = "sha256:e464cef7889117e7ae7253e35fcb8272bd8ae68fc10bb3399ef85b036c092528"},
-    {file = "flake8_2020-1.6.0.tar.gz", hash = "sha256:3e438d9d531577fbb9332bbd0bf394eca890f3b7a5311e2278fb3582381a2f13"},
+    {file = "flake8_2020-1.6.1-py2.py3-none-any.whl", hash = "sha256:efcc056fb723e1ea5307e3b663c7c328f1c23a5ff0a0fd3be695a918d8245c3a"},
+    {file = "flake8_2020-1.6.1.tar.gz", hash = "sha256:db523e3383befc17c895219551ff6c9b2f6e0a5cae4c7739ea65a2238bdc6f74"},
 ]
 flake8-black = [
     {file = "flake8-black-0.2.3.tar.gz", hash = "sha256:c199844bc1b559d91195ebe8620216f21ed67f2cc1ff6884294c91a0d2492684"},
