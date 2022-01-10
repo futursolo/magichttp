@@ -45,7 +45,7 @@ black = "^20.8b1"
 flake8-black = "^0.2.3"
 
 # Typing
-mypy = "^0.910"
+mypy = "^0.931"
 
 # Linters
 flake8 = "^3.9.2"
